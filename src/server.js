@@ -24,6 +24,27 @@ app.get('/',(req,res)=>{
     res.send('Esto funciona')
 })
 
+
+const authMiddleware = (req,res,next) =>{
+    const token = req.cookies.token
+    if (!token) {
+        res.status(401).json({"message":"Token inexistente"})
+    }else{
+        try {
+            payload = jwt.verify(token,JWT_SECRET)
+
+            req.user = payload
+            
+            next()
+
+        } catch (error) {
+            res.status(401).json({"Token inválido"})
+        }
+
+
+    }
+}
+
 //Ruta de login
 app.post('/login',async(req,res)=>{
     try{
