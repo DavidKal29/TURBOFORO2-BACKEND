@@ -65,9 +65,9 @@ app.post('/login',async(req,res)=>{
 
                 res.cookie('token',token,{
                     httpOnly: true,
-                    secure:true,
+                    secure: false,
                     maxAge: 3600 * 1000,
-                    sameSite:'none'
+                    sameSite:'lax'
                 })
 
                 conn.release()
@@ -107,9 +107,9 @@ app.post('/register',async(req,res)=>{
 
             res.cookie('token',token,{
                 httpOnly: true,
-                secure:true,
+                secure: false,
                 maxAge: 3600 * 1000,
-                sameSite:'none'
+                sameSite:'lax'
             })
 
             conn.release()
@@ -124,6 +124,12 @@ app.post('/register',async(req,res)=>{
 
 app.get('/perfil',authMiddleware,(req,res)=>{
     res.status(200).json({loggedIn:true,user:req.user})
+})
+
+app.get('/logout',authMiddleware,(req,res)=>{
+    res.clearCookie('token',{httpOnly:true, secure:false, sameSite:'lax'})
+
+    res.status(200).json({loggedOut:true})
 })
 
 
