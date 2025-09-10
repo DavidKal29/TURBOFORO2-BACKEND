@@ -28,7 +28,7 @@ app.get('/',(req,res)=>{
 const authMiddleware = (req,res,next) =>{
     const token = req.cookies.token
     if (!token) {
-        res.status(401).json({"message":"Token inexistente"})
+        res.status(401).json({loggedIn:false, "message":"Token inexistente"})
     }else{
         try {
             payload = jwt.verify(token,JWT_SECRET)
@@ -38,7 +38,7 @@ const authMiddleware = (req,res,next) =>{
             next()
 
         } catch (error) {
-            res.status(401).json({"Token inválido"})
+            res.status(401).json({loggedIn:false, "message":"Token inválido"})
         }
 
 
@@ -119,6 +119,11 @@ app.post('/register',async(req,res)=>{
         console.log(error);
         res.status(500).json({message:"Error en register"})
     }
+})
+
+
+app.get('/perfil',authMiddleware,(req,res)=>{
+    res.status(200).json({loggedIn:true,user:req.user})
 })
 
 
