@@ -126,6 +126,41 @@ app.get('/perfil',authMiddleware,(req,res)=>{
     res.status(200).json({loggedIn:true,user:req.user})
 })
 
+
+app.post('/editar_perfil',authMiddleware,async(req,res)=>{
+    const {email,username} = req.body
+
+    if (email == req.user.email && username == req.user.username) {
+        res.status(400).json({changed:false, message:"Asegurate que al menos un campo sea distinto al original"})
+    }else{
+        const conn = await pool.getConnection()
+
+        const [data] = await conn.query('SELECT email, username FROM usuarios WHERE (email = ? or username = ?) and id != ?',[email, username,req.user.id])
+
+        if (data.length>0) {
+            res.status(400).json({changed:false, message:"Email o username ya están en uso"})
+        }else{
+            await conn.query('UPDATE usuarios SET email = ?, username = ? WHERE id = ?',[email,username,req.user.id])
+
+            const new_user = {id:req.user.id,email:email,username:username}
+
+            const token = jwt.sign(new_user,JWT_SECRET)
+
+            res.cookie('token',token,{
+                httpOnly: true,
+                secure: false,
+                sameSite: 'lax'
+            })
+
+
+            res.status(200).json({changed:true, message:"Datos cambiados con éxito"})
+        }
+
+    }
+
+})
+
+
 app.get('/logout',authMiddleware,(req,res)=>{
     res.clearCookie('token',{httpOnly:true, secure:false, sameSite:'lax'})
 
