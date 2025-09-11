@@ -53,7 +53,7 @@ app.post('/login',async(req,res)=>{
     try{
         let {email,password} = req.body
         const conn = await pool.getConnection()
-        const [user_exists] = await conn.query('SELECT * FROM usuarios WHERE email = ?',[email])
+        const [user_exists] = await conn.query('SELECT *,DATE_FORMAT(fecha_registro, "%d %M %Y") AS fecha  FROM usuarios WHERE email = ?',[email])
 
         if (user_exists.length>0) {
             const equalPassword = await bcrypt.compare(password,user_exists[0].password)
@@ -66,7 +66,7 @@ app.post('/login',async(req,res)=>{
                 const description = user_exists[0].description
                 const hilos = user_exists[0].hilos
                 const mensajes = user_exists[0].mensajes
-                const fecha_registro = user_exists[0].fecha_registro
+                const fecha_registro = user_exists[0].fecha
                 console.log('El avatar:',avatar);
                 
                 const user = {
@@ -120,7 +120,7 @@ app.post('/register',async(req,res)=>{
             res.json({"message":"El usuario ya existe"})
         }else{
             await conn.query('INSERT INTO usuarios (email, username, password) VALUES (?,?,?)',[email,username,encriptedPassword])
-            const [user_exists] = await conn.query('SELECT * FROM usuarios WHERE email = ?',[email])
+            const [user_exists] = await conn.query('SELECT *,DATE_FORMAT(fecha_registro, "%d %M %Y") AS fecha FROM usuarios WHERE email = ?',[email])
             
             const id = user_exists[0].id
             const username = user_exists[0].username
@@ -129,7 +129,7 @@ app.post('/register',async(req,res)=>{
             const description = user_exists[0].description
             const hilos = user_exists[0].hilos
             const mensajes = user_exists[0].mensajes
-            const fecha_registro = user_exists[0].fecha_registro
+            const fecha_registro = user_exists[0].fecha
                 
             const user = {
                 id: id,
