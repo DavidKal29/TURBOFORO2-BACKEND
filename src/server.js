@@ -166,9 +166,9 @@ app.get('/perfil',authMiddleware,(req,res)=>{
 
 
 app.post('/editar_perfil',authMiddleware,async(req,res)=>{
-    const {email,username} = req.body
+    const {email,username,description} = req.body
 
-    if (email == req.user.email && username == req.user.username) {
+    if (email == req.user.email && username == req.user.username && description === req.user.description) {
         res.status(400).json({changed:false, message:"Asegurate que al menos un campo sea distinto al original"})
     }else{
         const conn = await pool.getConnection()
@@ -178,9 +178,9 @@ app.post('/editar_perfil',authMiddleware,async(req,res)=>{
         if (data.length>0) {
             res.status(400).json({changed:false, message:"Email o username ya están en uso"})
         }else{
-            await conn.query('UPDATE usuarios SET email = ?, username = ? WHERE id = ?',[email,username,req.user.id])
+            await conn.query('UPDATE usuarios SET email = ?, username = ?, description = ? WHERE id = ?',[email,username,description,req.user.id])
 
-            const new_user = {id:req.user.id,email:email,username:username,avatar:req.user.avatar}
+            const new_user = {...req.user,email:email,username:username,description:description}
 
             const token = jwt.sign(new_user,JWT_SECRET)
 
@@ -219,7 +219,7 @@ app.post('/editar_avatar',authMiddleware,async(req,res)=>{
 
         await conn.query('UPDATE usuarios SET id_avatar = ? WHERE id = ?',[id_avatar,req.user.id])
 
-        const new_user = {id:req.user.id,email:req.user.email,username:req.user.username,avatar:id_avatar}
+        const new_user = {...req.user,avatar:id_avatar}
 
         const token = jwt.sign(new_user,JWT_SECRET)
 
