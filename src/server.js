@@ -34,6 +34,9 @@ const authMiddleware = (req,res,next) =>{
             payload = jwt.verify(token,JWT_SECRET)
 
             req.user = payload
+
+            console.log('El payload:',req.user);
+            
             
             next()
 
@@ -59,7 +62,10 @@ app.post('/login',async(req,res)=>{
                 const id = user_exists[0].id
                 const username = user_exists[0].username
                 const email = user_exists[0].email
-                const user = {id:id,email:email,username:username}
+                const avatar = user_exists[0].id_avatar
+                console.log('El avatar:',avatar);
+                
+                const user = {id:id,email:email,username:username,avatar:avatar}
                 
                 const token = jwt.sign(user,JWT_SECRET,{expiresIn:'1h'})
 
@@ -102,7 +108,7 @@ app.post('/register',async(req,res)=>{
         }else{
             await conn.query('INSERT INTO usuarios (email, username, password) VALUES (?,?,?)',[email,username,encriptedPassword])
             const [user_exists] = await conn.query('SELECT * FROM usuarios WHERE email = ?',[email])
-            const user = {id:user_exists[0].id,email:user_exists[0].email,username:user_exists[0].username}
+            const user = {id:user_exists[0].id,email:user_exists[0].email,username:user_exists[0].username,avatar:16}
             const token = jwt.sign(user,JWT_SECRET,{expiresIn:'1h'})
 
             res.cookie('token',token,{
@@ -142,7 +148,7 @@ app.post('/editar_perfil',authMiddleware,async(req,res)=>{
         }else{
             await conn.query('UPDATE usuarios SET email = ?, username = ? WHERE id = ?',[email,username,req.user.id])
 
-            const new_user = {id:req.user.id,email:email,username:username}
+            const new_user = {id:req.user.id,email:email,username:username,avatar:req.user.avatar}
 
             const token = jwt.sign(new_user,JWT_SECRET)
 
@@ -165,6 +171,38 @@ app.get('/logout',authMiddleware,(req,res)=>{
     res.clearCookie('token',{httpOnly:true, secure:false, sameSite:'lax'})
 
     res.status(200).json({loggedOut:true})
+})
+
+app.post('/editar_avatar',authMiddleware,async(req,res)=>{
+    const {id_avatar} = req.body
+
+    if (id_avatar>24 || id_avatar<1) {
+        console.log("El id del avatar es invalido");
+        
+        res.json({changed:false, message:"El id del avatar es inválido"})
+    }else{
+        const conn = await pool.getConnection()
+
+        console.log("El id del avatar es valido");
+
+        await conn.query('UPDATE usuarios SET id_avatar = ? WHERE id = ?',[id_avatar,req.user.id])
+
+        const new_user = {id:req.user.id,email:req.user.email,username:req.user.username,avatar:id_avatar}
+
+        const token = jwt.sign(new_user,JWT_SECRET)
+
+        res.cookie('token',token,{
+            httpOnly: true,
+            secure: false,
+            sameSite: 'lax'
+        })
+
+
+
+        res.json({changed:true, message:"Avatar cambiado con éxito"})
+    }
+
+    
 })
 
 
