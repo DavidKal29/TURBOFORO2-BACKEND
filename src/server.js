@@ -63,9 +63,22 @@ app.post('/login',async(req,res)=>{
                 const username = user_exists[0].username
                 const email = user_exists[0].email
                 const avatar = user_exists[0].id_avatar
+                const description = user_exists[0].description
+                const hilos = user_exists[0].hilos
+                const mensajes = user_exists[0].mensajes
+                const fecha_registro = user_exists[0].fecha_registro
                 console.log('El avatar:',avatar);
                 
-                const user = {id:id,email:email,username:username,avatar:avatar}
+                const user = {
+                    id: id,
+                    email: email,
+                    username: username,
+                    avatar: avatar,
+                    description: description,
+                    hilos: hilos,
+                    mensajes: mensajes,
+                    fecha_registro: fecha_registro
+                }
                 
                 const token = jwt.sign(user,JWT_SECRET,{expiresIn:'1h'})
 
@@ -108,7 +121,26 @@ app.post('/register',async(req,res)=>{
         }else{
             await conn.query('INSERT INTO usuarios (email, username, password) VALUES (?,?,?)',[email,username,encriptedPassword])
             const [user_exists] = await conn.query('SELECT * FROM usuarios WHERE email = ?',[email])
-            const user = {id:user_exists[0].id,email:user_exists[0].email,username:user_exists[0].username,avatar:16}
+            
+            const id = user_exists[0].id
+            const username = user_exists[0].username
+            const email = user_exists[0].email
+            const avatar = user_exists[0].id_avatar
+            const description = user_exists[0].description
+            const hilos = user_exists[0].hilos
+            const mensajes = user_exists[0].mensajes
+            const fecha_registro = user_exists[0].fecha_registro
+                
+            const user = {
+                id: id,
+                email: email,
+                username: username,
+                avatar: avatar,
+                description: description,
+                hilos: hilos,
+                mensajes: mensajes,
+                fecha_registro: fecha_registro
+            }
             const token = jwt.sign(user,JWT_SECRET,{expiresIn:'1h'})
 
             res.cookie('token',token,{
