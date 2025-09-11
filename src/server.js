@@ -6,6 +6,7 @@ const bcrypt = require('bcryptjs')
 const cors = require('cors')
 const jwt = require('jsonwebtoken')
 JWT_SECRET = process.env.JWT_SECRET
+const {body, validationResult} = require('express-validator')
 
 const cookieParser = require('cookie-parser')
 
@@ -51,7 +52,11 @@ const authMiddleware = (req,res,next) =>{
 //Ruta de login
 app.post('/login',async(req,res)=>{
     try{
+
+
         let {email,password} = req.body
+
+
         const conn = await pool.getConnection()
         const [user_exists] = await conn.query('SELECT *,DATE_FORMAT(fecha_registro, "%d %M %Y") AS fecha  FROM usuarios WHERE email = ?',[email])
 
@@ -97,7 +102,7 @@ app.post('/login',async(req,res)=>{
             }
         }else{
             conn.release()
-            res.json({"message":"Contraseña o Email Incorrecto"})
+            res.json({"message":"Contraseña o Email Incorrectos"})
         }
     }catch(error){
         console.log(error);
@@ -107,9 +112,48 @@ app.post('/login',async(req,res)=>{
 })
 
 
+
+const validadorRegister = [
+        body('email')
+        .trim()
+        .isEmail().withMessage('Debes poner un email válido')
+        .normalizeEmail()
+        .customSanitizer(val=>(val || '').replace(/\s+/g,''))
+        .notEmpty().withMessage('Email no puede estar vacío')
+        .escape(),
+
+        body('username')
+        .trim()
+        .customSanitizer(val=>(val || '').replace(/\s+/g,''))
+        .isLength({min:5,max:15}).withMessage('Username debe contener entre 5 y 15 carácteres')
+        .matches(/^[a-zA-Z0-9_.]+$/).withMessage('Solo se permiten letras, números, guion bajo y punto')
+        .notEmpty().withMessage('Username no puede estar vacío')
+        .matches(/[a-zA-Z]/).withMessage('Mínimo una letra en Username')
+        .escape(),
+
+        body('password')
+        .trim()
+        .matches(/\d/).withMessage('Mínimo un dígito')
+        .isLength({min:8,max:30}).withMessage('Password debe contener entre 8 y 30 carácteres')
+        .matches(/[A-Z]/).withMessage('Mínimo una mayúscula en Password')
+        .matches(/[#$€&%]/).withMessage('Mínimo un carácter especial en Password')
+        .customSanitizer(val=>(val || '').replace(/\s+/g,''))
+        .notEmpty().withMessage('Password no puede estar vacío')
+        .escape()
+        
+    ]
+
+
 //Ruta de registro
-app.post('/register',async(req,res)=>{
+app.post('/register',validadorRegister,async(req,res)=>{
     try{
+
+        const errors = validationResult(req)
+
+        if (!errors.isEmpty()) {
+            return res.status(400).json({error:errors.array()[0]})
+        }
+
         let {email,username,password} = req.body
         const conn = await pool.getConnection()
         const encriptedPassword = await bcrypt.hash(password,10)
@@ -117,29 +161,22 @@ app.post('/register',async(req,res)=>{
         
         if (user_exists.length>0) {
             conn.release()
+            console.log('El usuario ya existe');
+            
             res.json({"message":"El usuario ya existe"})
         }else{
             await conn.query('INSERT INTO usuarios (email, username, password) VALUES (?,?,?)',[email,username,encriptedPassword])
             const [user_exists] = await conn.query('SELECT *,DATE_FORMAT(fecha_registro, "%d %M %Y") AS fecha FROM usuarios WHERE email = ?',[email])
-            
-            const id = user_exists[0].id
-            const username = user_exists[0].username
-            const email = user_exists[0].email
-            const avatar = user_exists[0].id_avatar
-            const description = user_exists[0].description
-            const hilos = user_exists[0].hilos
-            const mensajes = user_exists[0].mensajes
-            const fecha_registro = user_exists[0].fecha
                 
             const user = {
-                id: id,
-                email: email,
-                username: username,
-                avatar: avatar,
-                description: description,
-                hilos: hilos,
-                mensajes: mensajes,
-                fecha_registro: fecha_registro
+                id: user_exists[0].id,
+                email: user_exists[0].email,
+                username: user_exists[0].username,
+                avatar: 16,
+                description: user_exists[0].description,
+                hilos: user_exists[0].hilos,
+                mensajes: user_exists[0].mensajes,
+                fecha_registro: user_exists[0].fecha
             }
             const token = jwt.sign(user,JWT_SECRET,{expiresIn:'1h'})
 
@@ -165,7 +202,42 @@ app.get('/perfil',authMiddleware,(req,res)=>{
 })
 
 
-app.post('/editar_perfil',authMiddleware,async(req,res)=>{
+const validadorEditPerfil = [
+        body('email')
+        .trim()
+        .isEmail().withMessage('Debes poner un email válido')
+        .normalizeEmail()
+        .customSanitizer(val=>(val || '').replace(/\s+/g,''))
+        .notEmpty().withMessage('Email no puede estar vacío')
+        .escape(),
+
+        body('username')
+        .trim()
+        .customSanitizer(val=>(val || '').replace(/\s+/g,''))
+        .isLength({min:5,max:15}).withMessage('Username debe contener entre 5 y 15 carácteres')
+        .matches(/^[a-zA-Z0-9_.]+$/).withMessage('Solo se permiten letras, números, guion bajo y punto')
+        .notEmpty().withMessage('Username no puede estar vacío')
+        .matches(/[a-zA-Z]/).withMessage('Mínimo una letra en Username')
+        .escape(),
+
+        body('description')
+        .trim()
+        .isLength({min:0, max:500}).withMessage('Máximo 500 carácteres')
+        .customSanitizer(val=>val.replace(/\s+g/, ' '))
+        .escape()
+        
+    ]
+
+
+app.post('/editar_perfil',validadorEditPerfil,authMiddleware,async(req,res)=>{
+
+    const errors = validationResult(req)
+
+    if (!errors.isEmpty()) {
+        return res.status(400).json({error:errors.array()[0]})
+    }
+
+
     const {email,username,description} = req.body
 
     if (email == req.user.email && username == req.user.username && description === req.user.description) {
