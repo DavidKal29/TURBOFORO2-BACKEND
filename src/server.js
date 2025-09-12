@@ -79,7 +79,7 @@ app.post('/login',CSRFProtection,async(req,res)=>{
         let {email,password} = req.body
 
         const conn = await pool.getConnection()
-        const [user_exists] = await conn.query('SELECT *,DATE_FORMAT(fecha_registro, "%d %M %Y") AS fecha  FROM usuarios WHERE email = ?',[email])
+        const [user_exists] = await conn.query('SELECT *,DATE_FORMAT(fecha_registro, "%d %M %Y") AS fecha,timestampdiff(YEAR, fecha_registro, NOW()) AS veterania  FROM usuarios WHERE email = ?',[email])
 
         if (user_exists.length>0) {
             const equalPassword = await bcrypt.compare(password,user_exists[0].password)
@@ -95,7 +95,9 @@ app.post('/login',CSRFProtection,async(req,res)=>{
                     hilos: user_exists[0].hilos,
                     mensajes: user_exists[0].mensajes,
                     fecha_registro: user_exists[0].fecha,
-                    verificado: user_exists[0].verificado
+                    verificado: user_exists[0].verificado,
+                    rol: user_exists[0].rol,
+                    veterania: user_exists[0].veterania
                 }
                 
                 const token = jwt.sign(user,JWT_SECRET,{expiresIn:'1h'})
@@ -179,7 +181,7 @@ app.post('/register',validadorRegister,CSRFProtection,async(req,res)=>{
             res.json({"message":"El usuario ya existe"})
         }else{
             await conn.query('INSERT INTO usuarios (email, username, password) VALUES (?,?,?)',[email,username,encriptedPassword])
-            const [user_exists] = await conn.query('SELECT *,DATE_FORMAT(fecha_registro, "%d %M %Y") AS fecha FROM usuarios WHERE email = ?',[email])
+            const [user_exists] = await conn.query('SELECT *,DATE_FORMAT(fecha_registro, "%d %M %Y") AS fecha,timestampdiff(YEAR, fecha_registro, NOW()) AS veterania  FROM usuarios WHERE email = ?',[email])
                 
             const user = {
                 id: user_exists[0].id,
@@ -190,8 +192,11 @@ app.post('/register',validadorRegister,CSRFProtection,async(req,res)=>{
                 hilos: user_exists[0].hilos,
                 mensajes: user_exists[0].mensajes,
                 fecha_registro: user_exists[0].fecha,
-                verificado: user_exists[0].verificado
+                verificado: user_exists[0].verificado,
+                rol: user_exists[0].rol,
+                veterania: user_exists[0].veterania
             }
+
             const token = jwt.sign(user,JWT_SECRET,{expiresIn:'1h'})
 
             res.cookie('token',token,{
