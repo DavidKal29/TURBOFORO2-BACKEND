@@ -52,7 +52,6 @@ const authMiddleware = (req,res,next) =>{
 
             console.log('El payload:',req.user);
             
-            
             next()
 
         } catch (error) {
@@ -76,9 +75,7 @@ app.get('/csrf-token',CSRFProtection,(req,res)=>{
 app.post('/login',CSRFProtection,async(req,res)=>{
     try{
 
-
         let {email,password} = req.body
-
 
         const conn = await pool.getConnection()
         const [user_exists] = await conn.query('SELECT *,DATE_FORMAT(fecha_registro, "%d %M %Y") AS fecha  FROM usuarios WHERE email = ?',[email])
@@ -87,25 +84,17 @@ app.post('/login',CSRFProtection,async(req,res)=>{
             const equalPassword = await bcrypt.compare(password,user_exists[0].password)
 
             if (equalPassword) {
-                const id = user_exists[0].id
-                const username = user_exists[0].username
-                const email = user_exists[0].email
-                const avatar = user_exists[0].id_avatar
-                const description = user_exists[0].description
-                const hilos = user_exists[0].hilos
-                const mensajes = user_exists[0].mensajes
-                const fecha_registro = user_exists[0].fecha
-                console.log('El avatar:',avatar);
                 
                 const user = {
-                    id: id,
-                    email: email,
-                    username: username,
-                    avatar: avatar,
-                    description: description,
-                    hilos: hilos,
-                    mensajes: mensajes,
-                    fecha_registro: fecha_registro
+                    id: user_exists[0].id,
+                    email: user_exists[0].email,
+                    username: user_exists[0].username,
+                    avatar: user_exists[0].id_avatar,
+                    description: user_exists[0].description,
+                    hilos: user_exists[0].hilos,
+                    mensajes: user_exists[0].mensajes,
+                    fecha_registro: user_exists[0].fecha,
+                    verificado: user_exists[0].verificado
                 }
                 
                 const token = jwt.sign(user,JWT_SECRET,{expiresIn:'1h'})
@@ -139,29 +128,29 @@ app.post('/login',CSRFProtection,async(req,res)=>{
 const validadorRegister = [
         body('email')
         .trim()
+        .notEmpty().withMessage('Email no puede estar vacío')
         .isEmail().withMessage('Debes poner un email válido')
         .normalizeEmail()
         .customSanitizer(val=>(val || '').replace(/\s+/g,''))
-        .notEmpty().withMessage('Email no puede estar vacío')
         .escape(),
 
         body('username')
         .trim()
+        .notEmpty().withMessage('Username no puede estar vacío')
         .customSanitizer(val=>(val || '').replace(/\s+/g,''))
         .isLength({min:5,max:15}).withMessage('Username debe contener entre 5 y 15 carácteres')
         .matches(/^[a-zA-Z0-9_.]+$/).withMessage('Solo se permiten letras, números, guion bajo y punto')
-        .notEmpty().withMessage('Username no puede estar vacío')
         .matches(/[a-zA-Z]/).withMessage('Mínimo una letra en Username')
         .escape(),
 
         body('password')
         .trim()
+        .notEmpty().withMessage('Password no puede estar vacío')
         .matches(/\d/).withMessage('Mínimo un dígito')
         .isLength({min:8,max:30}).withMessage('Password debe contener entre 8 y 30 carácteres')
         .matches(/[A-Z]/).withMessage('Mínimo una mayúscula en Password')
         .matches(/[#$€&%]/).withMessage('Mínimo un carácter especial en Password')
         .customSanitizer(val=>(val || '').replace(/\s+/g,''))
-        .notEmpty().withMessage('Password no puede estar vacío')
         .escape()
         
     ]
@@ -199,7 +188,8 @@ app.post('/register',validadorRegister,CSRFProtection,async(req,res)=>{
                 description: user_exists[0].description,
                 hilos: user_exists[0].hilos,
                 mensajes: user_exists[0].mensajes,
-                fecha_registro: user_exists[0].fecha
+                fecha_registro: user_exists[0].fecha,
+                verificado: user_exists[0].verificado
             }
             const token = jwt.sign(user,JWT_SECRET,{expiresIn:'1h'})
 
@@ -228,18 +218,18 @@ app.get('/perfil',authMiddleware,(req,res)=>{
 const validadorEditPerfil = [
         body('email')
         .trim()
+        .notEmpty().withMessage('Email no puede estar vacío')
         .isEmail().withMessage('Debes poner un email válido')
         .normalizeEmail()
         .customSanitizer(val=>(val || '').replace(/\s+/g,''))
-        .notEmpty().withMessage('Email no puede estar vacío')
         .escape(),
 
         body('username')
         .trim()
+        .notEmpty().withMessage('Username no puede estar vacío')
         .customSanitizer(val=>(val || '').replace(/\s+/g,''))
         .isLength({min:5,max:15}).withMessage('Username debe contener entre 5 y 15 carácteres')
         .matches(/^[a-zA-Z0-9_.]+$/).withMessage('Solo se permiten letras, números, guion bajo y punto')
-        .notEmpty().withMessage('Username no puede estar vacío')
         .matches(/[a-zA-Z]/).withMessage('Mínimo una letra en Username')
         .escape(),
 
@@ -285,12 +275,9 @@ app.post('/editar_perfil',validadorEditPerfil,CSRFProtection,authMiddleware,asyn
                 sameSite: 'lax'
             })
 
-
             res.status(200).json({changed:true, message:"Datos cambiados con éxito"})
         }
-
     }
-
 })
 
 
@@ -324,11 +311,8 @@ app.post('/editar_avatar',authMiddleware,async(req,res)=>{
             sameSite: 'lax'
         })
 
-
-
         res.json({changed:true, message:"Avatar cambiado con éxito"})
     }
-
     
 })
 
@@ -337,10 +321,10 @@ app.post('/editar_avatar',authMiddleware,async(req,res)=>{
 const validadorRecuperarPassword = [
         body('email')
         .trim()
+        .notEmpty().withMessage('Email no puede estar vacío')
         .isEmail().withMessage('Debes poner un email válido')
         .normalizeEmail()
         .customSanitizer(val=>(val || '').replace(/\s+/g,''))
-        .notEmpty().withMessage('Email no puede estar vacío')
         .escape()
     ]
 
@@ -389,12 +373,12 @@ const validadorChangePassword = [
         
         body('new_password')
         .trim()
+        .notEmpty().withMessage('Password no puede estar vacío')
         .matches(/\d/).withMessage('Mínimo un dígito')
         .isLength({min:8,max:30}).withMessage('Password debe contener entre 8 y 30 carácteres')
         .matches(/[A-Z]/).withMessage('Mínimo una mayúscula en Password')
         .matches(/[#$€&%]/).withMessage('Mínimo un carácter especial en Password')
         .customSanitizer(val=>(val || '').replace(/\s+/g,''))
-        .notEmpty().withMessage('Password no puede estar vacío')
         .escape()
         
     ]
@@ -403,10 +387,7 @@ const validadorChangePassword = [
 //Ruta para cambiar contraseña
 app.post('/cambiarPassword/:token',validadorChangePassword,CSRFProtection,async(req,res)=>{
     try{
-
         const errors = validationResult(req)
-
-        
 
         const token = req.params.token
         const conn = await pool.getConnection()
@@ -443,8 +424,99 @@ app.post('/cambiarPassword/:token',validadorChangePassword,CSRFProtection,async(
             res.json({"message":"Token inválido o expirado"})
         }
     }catch(error){
-        res.json({"message":"Token inválido"})
+        res.json({"message":"El enlace que estás usando es inválido"})
     }
+})
+
+
+
+app.post('/enviar_verificacion',authMiddleware,(req,res)=>{
+    try {
+        const {email} = req.body
+
+        const token = jwt.sign({email:email},JWT_SECRET,{expiresIn:'1m'})
+
+        console.log('El token:',token);
+        
+
+        const mailOptions = {
+            from: process.env.CORREO,
+            to: email,
+            subject: "Verificación",
+            text: `Para verificar la cuenta, entra a -> http://localhost:5000/verificar/${token}`
+        };
+            
+        transporter.sendMail(mailOptions, (error, info) => {
+            if (error) {
+                console.log("Error al enviar:", error);
+                res.json({"message":"Error al enviar correo de verificación"})
+            }
+        });
+
+        res.json({message:"Correo enviado con éxito"})
+        
+    } catch (error) {
+        res.json({"message":"Error al mandar correo de verificación"})
+    }
+})
+
+
+app.get('/verificar/:token',async(req,res)=>{
+
+    try {
+
+        console.log('El tokencillo va');
+        
+        const token = req.params.token
+
+        console.log('El token en verificar:',token);
+        
+
+        const conn = await pool.getConnection()
+
+        const decoded = jwt.verify(token,JWT_SECRET)
+
+        const [data] = await conn.query('SELECT verificado FROM usuarios WHERE email = ? and verificado = 0',[decoded.email])
+
+        console.log('la data:',data);
+        
+
+        if (data.length>0) {
+            await conn.query('UPDATE usuarios SET verificado = 1 WHERE email = ?',[decoded.email])
+
+             res.send(`
+                    <!doctype html>
+                    <html lang="es">
+                        <head>
+                        <meta charset="utf-8" />
+                        <meta name="viewport" content="width=device-width, initial-scale=1" />
+                        <title>Correo verificado</title>
+                        <script src="https://cdn.tailwindcss.com"></script>
+                        </head>
+                        <body class="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+                        <div class="max-w-md w-full bg-white rounded-2xl shadow-lg p-8 text-center">
+                            <div class="mx-auto w-24 h-24 rounded-full bg-green-50 flex items-center justify-center mb-6">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-12 h-12 text-green-600" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                            </div>
+                            <h1 class="text-2xl font-semibold text-gray-800 mb-2">¡Correo verificado!</h1>
+                            <p class="text-sm text-gray-500 mb-6">Gracias — tu dirección de email ha sido confirmada correctamente.</p>
+                            <hr class="my-6" />
+                            <p class="text-xs text-gray-400">Si no hiciste esta acción, contacta con soporte.</p>
+                        </div>
+                        </body>
+                    </html>`
+                )
+        }else{
+            res.send('Enlace Inválido o Expirado')
+        }
+
+
+    } catch (error) {
+        res.send('Enlace Inválido o Expirado')
+    }
+
 })
 
 
