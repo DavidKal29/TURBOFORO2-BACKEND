@@ -40,7 +40,7 @@ app.get('/',(req,res)=>{
 })
 
 
-const authMiddleware = (req,res,next) =>{
+const authMiddleware = async(req,res,next) =>{
     const token = req.cookies.token
     if (!token) {
         res.status(401).json({loggedIn:false, "message":"Token inexistente"})
@@ -48,11 +48,12 @@ const authMiddleware = (req,res,next) =>{
         try {
             payload = jwt.verify(token,JWT_SECRET)
 
+        
             req.user = payload
 
             console.log('El payload:',req.user);
             
-            next()
+            next()        
 
         } catch (error) {
             res.status(401).json({loggedIn:false, "message":"Token inválido"})
@@ -434,7 +435,7 @@ app.post('/enviar_verificacion',authMiddleware,(req,res)=>{
     try {
         const {email} = req.body
 
-        const token = jwt.sign({email:email},JWT_SECRET,{expiresIn:'1m'})
+        const token = jwt.sign({email:email},JWT_SECRET,{expiresIn:'5m'})
 
         console.log('El token:',token);
         
@@ -461,7 +462,7 @@ app.post('/enviar_verificacion',authMiddleware,(req,res)=>{
 })
 
 
-app.get('/verificar/:token',async(req,res)=>{
+app.get('/verificar/:token',authMiddleware,async(req,res)=>{
 
     try {
 
@@ -470,7 +471,6 @@ app.get('/verificar/:token',async(req,res)=>{
         const token = req.params.token
 
         console.log('El token en verificar:',token);
-        
 
         const conn = await pool.getConnection()
 
@@ -483,6 +483,18 @@ app.get('/verificar/:token',async(req,res)=>{
 
         if (data.length>0) {
             await conn.query('UPDATE usuarios SET verificado = 1 WHERE email = ?',[decoded.email])
+
+            const new_user = {...req.user, verificado:1}
+
+            console.log(new_user);
+
+            const token = jwt.sign(new_user,JWT_SECRET)
+
+            res.cookie('token',token,{
+                httpOnly: true,
+                secure: false,
+                sameSite: 'lax'
+            })
 
              res.send(`
                     <!doctype html>
@@ -509,7 +521,7 @@ app.get('/verificar/:token',async(req,res)=>{
                     </html>`
                 )
         }else{
-            res.send('Enlace Inválido o Expirado')
+            res.send('Correo ya verificado o incorrecto')
         }
 
 
