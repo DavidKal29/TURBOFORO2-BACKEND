@@ -364,7 +364,7 @@ app.post('/recuperarPassword',validadorRecuperarPassword,CSRFProtection,async(re
                 from: process.env.CORREO,
                 to: email,
                 subject: "Recuperación de Contraseña",
-                text: `Para recuperar la contraseña entra en este enlace -> ${process.env.FRONTEND_URL}/cambiarPassword/${token}`
+                text: `Para recuperar la contraseña entra en este enlace -> ${process.env.FRONTEND_URL}/change_password/${token}`
             };
             
             transporter.sendMail(mailOptions, (error, info) => {
@@ -381,6 +381,69 @@ app.post('/recuperarPassword',validadorRecuperarPassword,CSRFProtection,async(re
         }
     }catch(error){
         res.status(500).json({message:"Error en recuperarPassword"})
+    }
+})
+
+
+const validadorChangePassword = [
+        
+        body('new_password')
+        .trim()
+        .matches(/\d/).withMessage('Mínimo un dígito')
+        .isLength({min:8,max:30}).withMessage('Password debe contener entre 8 y 30 carácteres')
+        .matches(/[A-Z]/).withMessage('Mínimo una mayúscula en Password')
+        .matches(/[#$€&%]/).withMessage('Mínimo un carácter especial en Password')
+        .customSanitizer(val=>(val || '').replace(/\s+/g,''))
+        .notEmpty().withMessage('Password no puede estar vacío')
+        .escape()
+        
+    ]
+
+
+//Ruta para cambiar contraseña
+app.post('/cambiarPassword/:token',validadorChangePassword,CSRFProtection,async(req,res)=>{
+    try{
+
+        const errors = validationResult(req)
+
+        
+
+        const token = req.params.token
+        const conn = await pool.getConnection()
+       
+        const decoded = jwt.verify(token,JWT_SECRET)
+        const email = decoded.email
+        
+        const [data] = await conn.query('SELECT token FROM usuarios WHERE email = ? and token = ?',[email,token])
+        
+        if (data.length>0) {
+            const {new_password,confirm_password} = req.body
+            if (new_password===confirm_password) {
+                const [datos] = await conn.query('SELECT password FROM usuarios WHERE email = ?',[email])
+                if (datos.length>0) {
+                    const password_equals = await bcrypt.compare(new_password,datos[0].password)
+                    if (password_equals) {
+                        res.json({"message":"La nueva contraseña no puede ser igual a la anterior"})
+                    }else{
+                        if (!errors.isEmpty()) {
+                            return res.status(400).json({error:errors.array()[0]})
+                        }else{
+                            const new_encripted_password = await bcrypt.hash(new_password,10)
+                            await conn.query('UPDATE usuarios SET password = ? WHERE email = ?',[new_encripted_password,email])
+                            await conn.query('UPDATE usuarios SET token = "" WHERE email = ?',[email])
+                            return res.json({"message":"Contraseña cambiada con éxito"})
+                        }
+                        
+                    }
+                }
+            }else{
+                res.json({"message":"Contraseñas no coinciden"})
+            }
+        }else{
+            res.json({"message":"Token inválido o expirado"})
+        }
+    }catch(error){
+        res.json({"message":"Token inválido"})
     }
 })
 
