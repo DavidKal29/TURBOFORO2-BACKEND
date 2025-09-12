@@ -7,6 +7,7 @@ const cors = require('cors')
 const jwt = require('jsonwebtoken')
 JWT_SECRET = process.env.JWT_SECRET
 const {body, validationResult} = require('express-validator')
+const csurf = require('csurf')
 
 const cookieParser = require('cookie-parser')
 
@@ -49,8 +50,17 @@ const authMiddleware = (req,res,next) =>{
     }
 }
 
+
+const CSRFProtection = csurf({
+    cookie:true
+})
+
+app.get('/csrf-token',CSRFProtection,(req,res)=>{
+    res.json({csrfToken:req.csrfToken()})
+})
+
 //Ruta de login
-app.post('/login',async(req,res)=>{
+app.post('/login',CSRFProtection,async(req,res)=>{
     try{
 
 
@@ -145,7 +155,7 @@ const validadorRegister = [
 
 
 //Ruta de registro
-app.post('/register',validadorRegister,async(req,res)=>{
+app.post('/register',validadorRegister,CSRFProtection,async(req,res)=>{
     try{
 
         const errors = validationResult(req)
@@ -229,7 +239,7 @@ const validadorEditPerfil = [
     ]
 
 
-app.post('/editar_perfil',validadorEditPerfil,authMiddleware,async(req,res)=>{
+app.post('/editar_perfil',validadorEditPerfil,CSRFProtection,authMiddleware,async(req,res)=>{
 
     const errors = validationResult(req)
 
