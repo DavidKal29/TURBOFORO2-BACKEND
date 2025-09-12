@@ -11,6 +11,19 @@ const csurf = require('csurf')
 
 const cookieParser = require('cookie-parser')
 
+
+const nodemailer = require('nodemailer')
+
+//Configuramos nodemailer para enviar correos
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.CORREO,
+    pass: process.env.PASSWORD_DEL_CORREO
+  }
+});
+
+
 app.use(express.json())
 app.use(express.urlencoded({extended:true}))
 app.use(cookieParser())
@@ -318,6 +331,59 @@ app.post('/editar_avatar',authMiddleware,async(req,res)=>{
 
     
 })
+
+
+
+const validadorRecuperarPassword = [
+        body('email')
+        .trim()
+        .isEmail().withMessage('Debes poner un email válido')
+        .normalizeEmail()
+        .customSanitizer(val=>(val || '').replace(/\s+/g,''))
+        .notEmpty().withMessage('Email no puede estar vacío')
+        .escape()
+    ]
+
+//Ruta para enviar correo de recuperación
+app.post('/recuperarPassword',validadorRecuperarPassword,CSRFProtection,async(req,res)=>{
+    try{
+
+        const errors = validationResult(req)
+
+        if (!errors.isEmpty()) {
+            return res.status(400).json({error:errors.array()[0]})
+        }
+
+        const conn = await pool.getConnection()
+        const {email} = req.body
+        const [user_exists] = await conn.query('SELECT * FROM usuarios WHERE email = ?',[email])
+        if (user_exists.length>0) {
+            const token = jwt.sign({email:email},JWT_SECRET)
+            
+            const mailOptions = {
+                from: process.env.CORREO,
+                to: email,
+                subject: "Recuperación de Contraseña",
+                text: `Para recuperar la contraseña entra en este enlace -> ${process.env.FRONTEND_URL}/cambiarPassword/${token}`
+            };
+            
+            transporter.sendMail(mailOptions, (error, info) => {
+                if (error) {
+                    console.log("Error al enviar:", error);
+                    res.json({"message":"Error al enviar correo"})
+                }
+            });
+            
+            await conn.query('UPDATE usuarios SET token = ? WHERE email = ?',[token,email])
+            res.json({"message":"Correo enviado"})
+        }else{
+            res.json({"message":"No hay ninguna cuenta asociada a este correo"})
+        }
+    }catch(error){
+        res.status(500).json({message:"Error en recuperarPassword"})
+    }
+})
+
 
 
 
