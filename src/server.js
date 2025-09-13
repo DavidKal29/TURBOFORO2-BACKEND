@@ -72,6 +72,29 @@ app.get('/csrf-token',CSRFProtection,(req,res)=>{
     res.json({csrfToken:req.csrfToken()})
 })
 
+app.get('/categorias',async(req,res)=>{
+    const conn = await pool.getConnection()
+
+    console.log('La peticion de /categorias funciona y ha sido abierta');
+    
+
+    const [data] = await conn.query('SELECT * FROM categorias')
+
+    conn.release();
+
+    if (data.length>0) {
+        console.log('Categorias obtenidas con éxito');
+        
+        
+        res.json({categorias:data})
+        
+    }else{
+        console.log('Las malditas categorias no han sido obtenidas');
+        
+        res.json({categorias:[]})
+    }
+})
+
 //Ruta de login
 app.post('/login',CSRFProtection,async(req,res)=>{
     try{
