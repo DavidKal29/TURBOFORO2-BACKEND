@@ -265,7 +265,7 @@ const validadorEditPerfil = [
         body('description')
         .trim()
         .isLength({min:0, max:500}).withMessage('Máximo 500 carácteres')
-        .customSanitizer(val=>val.replace(/\s+g/, ' '))
+        .customSanitizer(val=>val.replace(/\s+/g, ' '))
         .escape()
         
     ]
@@ -561,7 +561,81 @@ app.get('/verificar/:token',authMiddleware,async(req,res)=>{
 
 
 
+const validadorCrearHilo = [
+        body('titulo')
+        .trim()
+        .notEmpty().withMessage('Título no puede estar vacío')
+        .isLength({min:5,max:100}).withMessage('Título debe contener entre 5 y 100 carácteres')
+        .customSanitizer(val=>(val || '').replace(/\s+/g,''))
+        .escape(),
 
+        body('mensaje')
+        .trim()
+        .notEmpty().withMessage('Mensaje no puede estar vacío')
+        .isLength({min:0, max:5000}).withMessage('Máximo 5000 carácteres')
+        .customSanitizer(val=>val.replace(/\s+/g, ' '))
+        .escape()
+        
+    ]
+
+
+app.post('/crearHilo',authMiddleware,CSRFProtection,validadorCrearHilo,async(req,res)=>{
+    const errors = validationResult(req)
+
+    if (!errors.isEmpty()) {
+        return res.json({error: errors.array()[0]})
+    }else{
+        
+        const {titulo,mensaje,categoria} = req.body
+
+        console.log(typeof(req.user.id));
+        
+
+        const conn = await pool.getConnection()
+
+        const [user_verified] = await conn.query('SELECT * FROM usuarios WHERE id = ? and verificado = 1',[req.user.id])
+
+        if (!user_verified.length>0) {
+            return res.json({message:"Debes verificar tu email para poder crear hilos"})
+        }
+
+
+        const [data] = await conn.query('SELECT * FROM categorias WHERE id = ?',[categoria])
+
+        if (data.length>0) {
+            await conn.query('INSERT INTO hilos (titulo,id_usuario,id_categoria) VALUES (?,?,?)',[titulo,req.user.id,categoria])
+
+            const [data] = await conn.query('SELECT id FROM hilos ORDER BY id DESC LIMIT 1')
+
+            if (data.length>0) {
+                const id_hilo = data[0].id
+                
+                await conn.query('INSERT INTO mensajes (contenido,id_usuario,id_hilo) VALUES (?,?,?)',[mensaje,req.user.id,id_hilo])
+
+                await conn.query('UPDATE usuarios SET mensajes = mensajes + 1, hilos = hilos + 1 WHERE id = ?',[req.user.id])
+
+                const new_user = {...req.user, hilos: req.user.hilos+1, mensajes: req.user.mensajes+1}
+
+                const token = jwt.sign(new_user,JWT_SECRET)
+
+                res.cookie('token',token,{
+                    httpOnly: true,
+                    secure: false,
+                    sameSite: 'lax'
+                })
+
+                return res.json({message:"Hilo creado con éxito"})
+
+            }else{
+                return res.json({message:"No se ha podido recuperar el hilo creado"})
+            }
+            
+        }else{
+            return res.json({message:"La categoría que se ha enviado es inexistente"})
+        }
+
+    }
+})
 
 
 const PORT = process.env.PORT
