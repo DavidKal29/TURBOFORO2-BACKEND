@@ -614,6 +614,10 @@ app.post('/crearHilo',authMiddleware,CSRFProtection,validadorCrearHilo,async(req
 
                 await conn.query('UPDATE usuarios SET mensajes = mensajes + 1, hilos = hilos + 1 WHERE id = ?',[req.user.id])
 
+                await conn.query('UPDATE categorias SET counter = counter + 1 WHERE id = ?',[categoria])
+
+                await conn.query('UPDATE hilos SET mensajes = mensajes + 1 WHERE id = ?',[id_hilo])
+
                 const new_user = {...req.user, hilos: req.user.hilos+1, mensajes: req.user.mensajes+1}
 
                 const token = jwt.sign(new_user,JWT_SECRET)
@@ -636,6 +640,35 @@ app.post('/crearHilo',authMiddleware,CSRFProtection,validadorCrearHilo,async(req
 
     }
 })
+
+
+app.get('/hilos/:id_categoria/:page',async(req,res)=>{
+    console.log('Entramos en la ruta de hilos');
+    
+    const id_categoria = Number(req.params.id_categoria)
+    const page = Number(req.params.page)
+
+    const conn = await pool.getConnection()
+
+    const offset = 39 * (page-1)
+
+    const [data] = await conn.query("SELECT *,DATE_FORMAT(fecha_registro, '%M %Y %H:%i') as fecha FROM hilos WHERE id_categoria = ? LIMIT 39 OFFSET ?",[id_categoria, offset])
+
+    conn.release()
+
+    console.log('Los hilos:',data);
+
+    if (data.length>0) {
+        
+        
+        res.json({hilos:data})
+    }else{
+        res.json({hilos:[]})
+    }
+
+})
+
+
 
 
 const PORT = process.env.PORT
