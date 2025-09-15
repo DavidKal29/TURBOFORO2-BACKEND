@@ -669,6 +669,100 @@ app.get('/hilos/:id_categoria/:page',async(req,res)=>{
 })
 
 
+app.get('/hilo/:id_hilo',async(req,res)=>{
+    const conn = await pool.getConnection()
+
+    const id_hilo = req.params.id_hilo
+
+    console.log('Hemos caido en la rutilla magica');
+
+    const [thread_exists] = await conn.query('SELECT titulo, mensajes, id_usuario FROM hilos WHERE id = ?',[id_hilo])
+
+    if (thread_exists.length>0) {
+        const hilo = thread_exists[0]
+
+        console.log(hilo);
+        
+
+        const consulta = `
+            SELECT m.*,DATE_FORMAT(m.fecha_registro, '%d %M %Y %H:%i') as fecha, u.username,u.id_avatar 
+            FROM turboforo2.mensajes as m
+            INNER JOIN usuarios as u
+            ON m.id_usuario = u.id
+            WHERE m.id_hilo = ?
+            ORDER BY m.id
+        `
+
+        const [data] = await conn.query(consulta,[id_hilo])
+
+        conn.release()
+
+        if (data.length>0) {
+            console.log('Mensajes obtenidos');
+            console.log(data); 
+            res.json({hilo:hilo,mensajes:data})
+        }else{
+            console.log('Mensajes no obtenidos');
+            
+            res.json({message:'No se han encontrado los mensajes'})
+        }
+
+    }else{
+        res.json({message:'No se ha encontrado el hilo'})
+    }
+    
+    
+})
+
+const validadorMensaje = [
+
+        body('mensaje')
+        .trim()
+        .notEmpty().withMessage('Mensaje no puede estar vacío')
+        .isLength({min:0, max:5000}).withMessage('Máximo 5000 carácteres')
+        .customSanitizer(val=>val.replace(/\s+/g, ' '))
+        .escape()
+        
+    ]
+app.post('/hilo/:id_hilo',authMiddleware,validadorMensaje,CSRFProtection,async(req,res)=>{
+    const errors = validationResult(req)
+
+    console.log('Hemos entrado a los errores');
+    
+    
+    if (!errors.isEmpty()) {
+        return res.json({error: errors.array[0]})
+    }
+
+    const conn = await pool.getConnection()
+
+    const id_hilo = req.params.id_hilo
+
+    const {mensaje,id_mensaje_respuesta} = req.body
+
+    const [thread_exists] = await conn.query('SELECT titulo, mensajes, id_usuario FROM hilos WHERE id = ?',[id_hilo])
+
+    if (thread_exists.length>0) {
+        await conn.query('INSERT INTO mensajes (contenido,id_usuario,id_hilo,id_mensaje_respuesta) VALUES (?,?,?,?)',[mensaje,req.user.id,id_hilo,id_mensaje_respuesta])
+
+        await conn.query('UPDATE usuarios SET mensajes = mensajes + 1, hilos = hilos + 1 WHERE id = ?',[req.user.id])
+
+        await conn.query('UPDATE categorias SET counter = counter + 1 WHERE id = (SELECT id_categoria FROM  hilos WHERE id = ?)',[id_hilo])
+
+        await conn.query('UPDATE hilos SET mensajes = mensajes + 1 WHERE id = ?',[id_hilo])
+
+        res.json({shared:true})
+
+
+    }else{
+        res.json({shared:false})
+    }
+
+
+    
+})
+
+
 
 
 const PORT = process.env.PORT
