@@ -626,7 +626,7 @@ app.post('/crearHilo',authMiddleware,CSRFProtection,validadorCrearHilo,async(req
                     sameSite: 'lax'
                 })
 
-                return res.json({message:"Hilo creado con éxito"})
+                return res.json({message:"Hilo creado con éxito",id_hilo:id_hilo})
 
             }else{
                 return res.json({message:"No se ha podido recuperar el hilo creado"})
@@ -651,7 +651,7 @@ app.get('/hilos/:id_categoria/:page',async(req,res)=>{
 
         const offset = 39 * (page-1)
 
-        const [data] = await conn.query("SELECT *,DATE_FORMAT(fecha_registro, '%M %Y %H:%i') as fecha FROM hilos WHERE id_categoria = ? LIMIT 39 OFFSET ?",[id_categoria, offset])
+        const [data] = await conn.query("SELECT *,DATE_FORMAT(fecha_registro, '%M %Y %H:%i') as fecha FROM hilos WHERE id_categoria = ? ORDER BY id DESC LIMIT 39 OFFSET ?",[id_categoria, offset])
 
         conn.release()
 
