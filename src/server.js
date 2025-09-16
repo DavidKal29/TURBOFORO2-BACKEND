@@ -48,17 +48,13 @@ const authMiddleware = async(req,res,next) =>{
         try {
             payload = jwt.verify(token,JWT_SECRET)
 
-        
             req.user = payload
-
-            console.log('El payload:',req.user);
             
             next()        
 
         } catch (error) {
             res.status(401).json({loggedIn:false, "message":"Token inválido"})
         }
-
 
     }
 }
@@ -73,25 +69,26 @@ app.get('/csrf-token',CSRFProtection,(req,res)=>{
 })
 
 app.get('/categorias',async(req,res)=>{
-    const conn = await pool.getConnection()
+    try {
+        const conn = await pool.getConnection()
 
-    console.log('La peticion de /categorias funciona y ha sido abierta');
-    
+        console.log('La peticion de /categorias funciona y ha sido abierta');
+        
 
-    const [data] = await conn.query('SELECT * FROM categorias')
+        const [data] = await conn.query('SELECT * FROM categorias')
 
-    conn.release();
+        conn.release();
 
-    if (data.length>0) {
-        console.log('Categorias obtenidas con éxito');
-        
-        
-        res.json({categorias:data})
-        
-    }else{
-        console.log('Las malditas categorias no han sido obtenidas');
-        
-        res.json({categorias:[]})
+        if (data.length>0) {
+            console.log('Categorias obtenidas con éxito');
+            res.json({categorias:data})
+            
+        }else{
+            console.log('Las malditas categorias no han sido obtenidas');
+            res.json({message:"Las categorias no han sido obtenidas"})
+        }
+    } catch (error) {
+        res.json({message:"Las categorias no han sido obtenidas"})
     }
 })
 
@@ -640,53 +637,59 @@ app.post('/crearHilo',authMiddleware,CSRFProtection,validadorCrearHilo,async(req
 })
 
 
-app.get('/hilos/:id_categoria/:page',async(req,res)=>{
+app.get('/hilos/:id_categoria/:page', async (req, res) => {
+    let conn
     try {
+        conn = await pool.getConnection();
         console.log('Entramos en la ruta de hilos');
-    
-        const id_categoria = Number(req.params.id_categoria)
-        const page = Number(req.params.page)
 
-        const conn = await pool.getConnection()
+        const id_categoria = Number(req.params.id_categoria);
+        const page = Number(req.params.page);
 
-        const offset = 39 * (page-1)
+        console.log(id_categoria, page);
 
-        const [data] = await conn.query("SELECT *,DATE_FORMAT(fecha_registro, '%M %Y %H:%i') as fecha FROM hilos WHERE id_categoria = ? ORDER BY id DESC LIMIT 39 OFFSET ?",[id_categoria, offset])
+        const offset = 39 * (page - 1);
 
-        conn.release()
+        const [data] = await conn.query(
+            "SELECT *,DATE_FORMAT(fecha_registro, '%M %Y %H:%i') as fecha FROM hilos WHERE id_categoria = ? ORDER BY id DESC LIMIT 39 OFFSET ?",
+            [id_categoria, offset]
+        );
 
-        console.log('Los hilos:',data);
-
-        if (data.length>0) {
-            
-            
-            res.json({hilos:data})
-        }else{
-            res.json({hilos:[]})
+        if (data.length > 0) {
+            console.log('La respuesta ha obtenido datos');
+            res.json({ hilos: data });
+        } else {
+            console.log('Datos erróneos');
+            res.json({ message: 'Datos erróneos' });
         }
     } catch (error) {
-        res.json({hilos:[]})
+        console.error(error);
+        res.json({ message: 'Datos erróneos' });
+    } finally {
+        if (conn) conn.release(); 
     }
+});
 
-})
 
 
-app.get('/hilo/:id_hilo',async(req,res)=>{
+app.get('/hilo/:id_hilo/:page',async(req,res)=>{
+    let conn
     try {
-        const conn = await pool.getConnection()
+        conn = await pool.getConnection()
 
         const id_hilo = Number(req.params.id_hilo)
         
+        const page = Number(req.params.page)
 
-        console.log('Hemos caido en la rutilla magica');
+        console.log('Id del hilo:',id_hilo);
+        console.log('Id del page:',page);
+        
+        const offset = 39 * (page-1)
 
         const [thread_exists] = await conn.query('SELECT titulo, mensajes, id_usuario FROM hilos WHERE id = ?',[id_hilo])
 
         if (thread_exists.length>0) {
             const hilo = thread_exists[0]
-
-            console.log(hilo);
-            
 
             const consulta = `
                 SELECT m.*,DATE_FORMAT(m.fecha_registro, '%d %M %Y %H:%i') as fecha, u.username,u.id_avatar 
@@ -695,19 +698,20 @@ app.get('/hilo/:id_hilo',async(req,res)=>{
                 ON m.id_usuario = u.id
                 WHERE m.id_hilo = ?
                 ORDER BY m.id
+                LIMIT 39
+                OFFSET ?
             `
 
-            const [data] = await conn.query(consulta,[id_hilo])
+            const [data] = await conn.query(consulta,[id_hilo,offset])
 
-            conn.release()
+            
 
             if (data.length>0) {
-                console.log('Mensajes obtenidos');
-                console.log(data); 
+                console.log('Los datos tienen length');
+                
                 res.json({hilo:hilo,mensajes:data})
             }else{
                 console.log('Mensajes no obtenidos');
-                
                 res.json({message:'No se han encontrado los mensajes'})
             }
 
@@ -720,6 +724,8 @@ app.get('/hilo/:id_hilo',async(req,res)=>{
         console.log('Error al obtener datos del hilo');
         res.json({message:'Error'})
         
+    }finally{
+        if(conn){conn.release()}
     }
     
     
