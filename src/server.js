@@ -668,45 +668,53 @@ app.get('/hilos/:id_categoria/:page',async(req,res)=>{
 
 
 app.get('/hilo/:id_hilo',async(req,res)=>{
-    const conn = await pool.getConnection()
+    try {
+        const conn = await pool.getConnection()
 
-    const id_hilo = req.params.id_hilo
+        const id_hilo = req.params.id_hilo
 
-    console.log('Hemos caido en la rutilla magica');
+        console.log('Hemos caido en la rutilla magica');
 
-    const [thread_exists] = await conn.query('SELECT titulo, mensajes, id_usuario FROM hilos WHERE id = ?',[id_hilo])
+        const [thread_exists] = await conn.query('SELECT titulo, mensajes, id_usuario FROM hilos WHERE id = ?',[id_hilo])
 
-    if (thread_exists.length>0) {
-        const hilo = thread_exists[0]
+        if (thread_exists.length>0) {
+            const hilo = thread_exists[0]
 
-        console.log(hilo);
-        
-
-        const consulta = `
-            SELECT m.*,DATE_FORMAT(m.fecha_registro, '%d %M %Y %H:%i') as fecha, u.username,u.id_avatar 
-            FROM turboforo2.mensajes as m
-            INNER JOIN usuarios as u
-            ON m.id_usuario = u.id
-            WHERE m.id_hilo = ?
-            ORDER BY m.id
-        `
-
-        const [data] = await conn.query(consulta,[id_hilo])
-
-        conn.release()
-
-        if (data.length>0) {
-            console.log('Mensajes obtenidos');
-            console.log(data); 
-            res.json({hilo:hilo,mensajes:data})
-        }else{
-            console.log('Mensajes no obtenidos');
+            console.log(hilo);
             
-            res.json({message:'No se han encontrado los mensajes'})
-        }
 
-    }else{
-        res.json({message:'No se ha encontrado el hilo'})
+            const consulta = `
+                SELECT m.*,DATE_FORMAT(m.fecha_registro, '%d %M %Y %H:%i') as fecha, u.username,u.id_avatar 
+                FROM turboforo2.mensajes as m
+                INNER JOIN usuarios as u
+                ON m.id_usuario = u.id
+                WHERE m.id_hilo = ?
+                ORDER BY m.id
+            `
+
+            const [data] = await conn.query(consulta,[id_hilo])
+
+            conn.release()
+
+            if (data.length>0) {
+                console.log('Mensajes obtenidos');
+                console.log(data); 
+                res.json({hilo:hilo,mensajes:data})
+            }else{
+                console.log('Mensajes no obtenidos');
+                
+                res.json({message:'No se han encontrado los mensajes'})
+            }
+
+        }else{
+            res.json({message:'No se ha encontrado el hilo'})
+            console.log('El hilo no existe');
+            
+        }
+    } catch (error) {
+        console.log('Error al obtener datos del hilo');
+        res.json({message:'Error'})
+        
     }
     
     
