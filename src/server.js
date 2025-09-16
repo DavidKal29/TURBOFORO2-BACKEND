@@ -641,26 +641,30 @@ app.post('/crearHilo',authMiddleware,CSRFProtection,validadorCrearHilo,async(req
 
 
 app.get('/hilos/:id_categoria/:page',async(req,res)=>{
-    console.log('Entramos en la ruta de hilos');
+    try {
+        console.log('Entramos en la ruta de hilos');
     
-    const id_categoria = Number(req.params.id_categoria)
-    const page = Number(req.params.page)
+        const id_categoria = Number(req.params.id_categoria)
+        const page = Number(req.params.page)
 
-    const conn = await pool.getConnection()
+        const conn = await pool.getConnection()
 
-    const offset = 39 * (page-1)
+        const offset = 39 * (page-1)
 
-    const [data] = await conn.query("SELECT *,DATE_FORMAT(fecha_registro, '%M %Y %H:%i') as fecha FROM hilos WHERE id_categoria = ? LIMIT 39 OFFSET ?",[id_categoria, offset])
+        const [data] = await conn.query("SELECT *,DATE_FORMAT(fecha_registro, '%M %Y %H:%i') as fecha FROM hilos WHERE id_categoria = ? LIMIT 39 OFFSET ?",[id_categoria, offset])
 
-    conn.release()
+        conn.release()
 
-    console.log('Los hilos:',data);
+        console.log('Los hilos:',data);
 
-    if (data.length>0) {
-        
-        
-        res.json({hilos:data})
-    }else{
+        if (data.length>0) {
+            
+            
+            res.json({hilos:data})
+        }else{
+            res.json({hilos:[]})
+        }
+    } catch (error) {
         res.json({hilos:[]})
     }
 
@@ -671,7 +675,8 @@ app.get('/hilo/:id_hilo',async(req,res)=>{
     try {
         const conn = await pool.getConnection()
 
-        const id_hilo = req.params.id_hilo
+        const id_hilo = Number(req.params.id_hilo)
+        
 
         console.log('Hemos caido en la rutilla magica');
 
