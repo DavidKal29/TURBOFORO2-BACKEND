@@ -566,7 +566,6 @@ const validadorCrearHilo = [
         .trim()
         .notEmpty().withMessage('Título no puede estar vacío')
         .isLength({min:5,max:100}).withMessage('Título debe contener entre 5 y 100 carácteres')
-        .customSanitizer(val=>(val || '').replace(/\s+/g,''))
         .escape(),
 
         body('mensaje')
@@ -598,7 +597,6 @@ app.post('/crearHilo',authMiddleware,CSRFProtection,validadorCrearHilo,async(req
         if (!user_verified.length>0) {
             return res.json({message:"Debes verificar tu email para poder crear hilos"})
         }
-
 
         const [data] = await conn.query('SELECT * FROM categorias WHERE id = ?',[categoria])
 
@@ -745,11 +743,19 @@ app.post('/hilo/:id_hilo',authMiddleware,validadorMensaje,CSRFProtection,async(r
     if (thread_exists.length>0) {
         await conn.query('INSERT INTO mensajes (contenido,id_usuario,id_hilo,id_mensaje_respuesta) VALUES (?,?,?,?)',[mensaje,req.user.id,id_hilo,id_mensaje_respuesta])
 
-        await conn.query('UPDATE usuarios SET mensajes = mensajes + 1, hilos = hilos + 1 WHERE id = ?',[req.user.id])
-
-        await conn.query('UPDATE categorias SET counter = counter + 1 WHERE id = (SELECT id_categoria FROM  hilos WHERE id = ?)',[id_hilo])
+        await conn.query('UPDATE usuarios SET mensajes = mensajes + 1 WHERE id = ?',[req.user.id])
 
         await conn.query('UPDATE hilos SET mensajes = mensajes + 1 WHERE id = ?',[id_hilo])
+
+        const new_user = {...req.user, mensajes: req.user.mensajes+1}
+
+        const token = jwt.sign(new_user,JWT_SECRET)
+
+        res.cookie('token',token,{
+            httpOnly: true,
+            secure: false,
+            sameSite: 'lax'
+        })
 
         res.json({shared:true})
 
