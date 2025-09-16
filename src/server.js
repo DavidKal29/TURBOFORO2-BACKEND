@@ -788,6 +788,37 @@ app.post('/hilo/:id_hilo',authMiddleware,validadorMensaje,CSRFProtection,async(r
 })
 
 
+app.get('/mis_hilos/:page',authMiddleware,async(req,res)=>{
+    let conn
+    try {
+        conn = await pool.getConnection();
+
+        const page = Number(req.params.page);
+
+        const offset = 39 * (page - 1);
+
+        const [data] = await conn.query(
+            "SELECT *,DATE_FORMAT(fecha_registro, '%M %Y %H:%i') as fecha FROM hilos WHERE id_usuario = ? ORDER BY id DESC LIMIT 39 OFFSET ?",
+            [req.user.id, offset]
+        );
+
+        if (data.length > 0) {
+            console.log('La respuesta ha obtenido datos');
+            res.json({ hilos: data });
+        } else {
+            console.log('El usuario seguramente no tiene hilos');
+            res.json({ hilos: data });
+        }
+    } catch (error) {
+        console.error(error);
+        res.json({ message: 'Datos erróneos' });
+    } finally {
+        if (conn) conn.release(); 
+    }
+
+})
+
+
 
 
 const PORT = process.env.PORT
