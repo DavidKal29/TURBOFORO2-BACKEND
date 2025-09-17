@@ -718,14 +718,22 @@ app.get('/hilo/:id_hilo/:page',async(req,res)=>{
             const hilo = thread_exists[0]
 
             const consulta = `
-                SELECT m.*,DATE_FORMAT(m.fecha_registro, '%d %M %Y %H:%i') as fecha, u.username,u.id_avatar 
-                FROM turboforo2.mensajes as m
-                INNER JOIN usuarios as u
-                ON m.id_usuario = u.id
-                WHERE m.id_hilo = ?
-                ORDER BY m.id
-                LIMIT 39
-                OFFSET ?
+                SELECT 
+                m.*,
+                DATE_FORMAT(m.fecha_registro, '%d %M %Y %H:%i') AS fecha,
+                u.username AS username_mensaje,
+                u.id_avatar,
+                mr.contenido AS contenido_mensaje_respuesta,
+                u_mr.username AS username_mensaje_respuesta
+            FROM turboforo2.mensajes AS m
+            INNER JOIN usuarios AS u ON m.id_usuario = u.id
+            LEFT JOIN mensajes AS mr ON m.id_mensaje_respuesta = mr.id
+            LEFT JOIN usuarios AS u_mr ON mr.id_usuario = u_mr.id
+            WHERE m.id_hilo = ?
+            ORDER BY m.id
+            LIMIT 39
+            OFFSET ?
+
             `
 
             const [data] = await conn.query(consulta,[id_hilo,offset])
