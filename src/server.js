@@ -41,21 +41,25 @@ app.get('/',(req,res)=>{
 
 
 const authMiddleware = async(req,res,next) =>{
-    const token = req.cookies.token
-    if (!token) {
-        res.status(401).json({loggedIn:false, "message":"Token inexistente"})
-    }else{
-        try {
-            payload = jwt.verify(token,JWT_SECRET)
+    try {
+        const token = req.cookies.token
+        if (!token) {
+            res.status(401).json({loggedIn:false, "message":"Token inexistente"})
+        }else{
+            try {
+                payload = jwt.verify(token,JWT_SECRET)
 
-            req.user = payload
-            
-            next()        
+                req.user = payload
+                
+                next()        
 
-        } catch (error) {
-            res.status(401).json({loggedIn:false, "message":"Token inválido"})
+            } catch (error) {
+                res.status(401).json({loggedIn:false, "message":"Token inválido"})
+            }
+
         }
-
+    } catch (error) {
+        res.status(401).json({loggedIn:false, "message":"Token inválido"})
     }
 }
 
@@ -576,63 +580,82 @@ const validadorCrearHilo = [
 
 
 app.post('/crearHilo',authMiddleware,CSRFProtection,validadorCrearHilo,async(req,res)=>{
-    const errors = validationResult(req)
+    let conn
+    try {
+        const errors = validationResult(req)
 
-    if (!errors.isEmpty()) {
-        return res.json({error: errors.array()[0]})
-    }else{
+        conn = await pool.getConnection()
+
         
-        const {titulo,mensaje,categoria} = req.body
+        if (!errors.isEmpty()) {
+            console.log('Caemos aqui');
+            
+            return res.json({error: errors.array()[0].msg})
+        }else{
 
-        console.log(typeof(req.user.id));
-        
+            const [result] = await conn.query('UPDATE usuarios SET last_message_at = CURRENT_TIMESTAMP WHERE id = ? AND last_message_at <= NOW() - INTERVAL 1 MINUTE',[req.user.id])
 
-        const conn = await pool.getConnection()
-
-        const [user_verified] = await conn.query('SELECT * FROM usuarios WHERE id = ? and verificado = 1',[req.user.id])
-
-        if (!user_verified.length>0) {
-            return res.json({message:"Debes verificar tu email para poder crear hilos"})
-        }
-
-        const [data] = await conn.query('SELECT * FROM categorias WHERE id = ?',[categoria])
-
-        if (data.length>0) {
-            await conn.query('INSERT INTO hilos (titulo,id_usuario,id_categoria) VALUES (?,?,?)',[titulo,req.user.id,categoria])
-
-            const [data] = await conn.query('SELECT id FROM hilos ORDER BY id DESC LIMIT 1')
-
-            if (data.length>0) {
-                const id_hilo = data[0].id
-                
-                await conn.query('INSERT INTO mensajes (contenido,id_usuario,id_hilo) VALUES (?,?,?)',[mensaje,req.user.id,id_hilo])
-
-                await conn.query('UPDATE usuarios SET mensajes = mensajes + 1, hilos = hilos + 1 WHERE id = ?',[req.user.id])
-
-                await conn.query('UPDATE categorias SET counter = counter + 1 WHERE id = ?',[categoria])
-
-                await conn.query('UPDATE hilos SET mensajes = mensajes + 1 WHERE id = ?',[id_hilo])
-
-                const new_user = {...req.user, hilos: req.user.hilos+1, mensajes: req.user.mensajes+1}
-
-                const token = jwt.sign(new_user,JWT_SECRET)
-
-                res.cookie('token',token,{
-                    httpOnly: true,
-                    secure: false,
-                    sameSite: 'lax'
-                })
-
-                return res.json({message:"Hilo creado con éxito",id_hilo:id_hilo})
-
-            }else{
-                return res.json({message:"No se ha podido recuperar el hilo creado"})
+            if (result.affectedRows === 0) {
+                return res.json({ error: 'Debes esperar 1 minuto para crear un hilo o mensaje' })
             }
             
-        }else{
-            return res.json({message:"La categoría que se ha enviado es inexistente"})
-        }
+            const {titulo,mensaje,categoria} = req.body
 
+            console.log(typeof(req.user.id));
+            
+            
+
+            const [user_verified] = await conn.query('SELECT * FROM usuarios WHERE id = ? and verificado = 1',[req.user.id])
+
+            if (!user_verified.length>0) {
+                return res.json({message:"Debes verificar tu email para poder crear hilos"})
+            }
+
+            const [data] = await conn.query('SELECT * FROM categorias WHERE id = ?',[categoria])
+
+            if (data.length>0) {
+                await conn.query('INSERT INTO hilos (titulo,id_usuario,id_categoria) VALUES (?,?,?)',[titulo,req.user.id,categoria])
+
+                const [data] = await conn.query('SELECT id FROM hilos ORDER BY id DESC LIMIT 1')
+
+                if (data.length>0) {
+                    const id_hilo = data[0].id
+                    
+                    await conn.query('INSERT INTO mensajes (contenido,id_usuario,id_hilo) VALUES (?,?,?)',[mensaje,req.user.id,id_hilo])
+
+                    await conn.query('UPDATE usuarios SET mensajes = mensajes + 1, hilos = hilos + 1 WHERE id = ?',[req.user.id])
+
+                    await conn.query('UPDATE categorias SET counter = counter + 1 WHERE id = ?',[categoria])
+
+                    await conn.query('UPDATE hilos SET mensajes = mensajes + 1 WHERE id = ?',[id_hilo])
+
+                    await conn.query('UPDATE usuarios SET last_message_at = CURRENT_TIMESTAMP WHERE id = ?',[req.user.id])
+
+                    const new_user = {...req.user, hilos: req.user.hilos+1, mensajes: req.user.mensajes+1}
+
+                    const token = jwt.sign(new_user,JWT_SECRET)
+
+                    res.cookie('token',token,{
+                        httpOnly: true,
+                        secure: false,
+                        sameSite: 'lax'
+                    })
+
+                    return res.json({message:"Hilo creado con éxito",id_hilo:id_hilo})
+
+                }else{
+                    return res.json({message:"No se ha podido recuperar el hilo creado"})
+                }
+                
+            }else{
+                return res.json({message:"La categoría que se ha enviado es inexistente"})
+            }
+
+        }
+    } catch (error) {
+        return res.json({message:"Error al crear hilo"})
+    }finally {
+        if (conn){conn.release()}
     }
 })
 
@@ -741,51 +764,66 @@ const validadorMensaje = [
         .escape()
         
     ]
-app.post('/hilo/:id_hilo',authMiddleware,validadorMensaje,CSRFProtection,async(req,res)=>{
+app.post('/hilo/:id_hilo', authMiddleware, validadorMensaje, CSRFProtection, async (req, res) => {
+  let conn
+  try {
     const errors = validationResult(req)
-
-    console.log('Hemos entrado a los errores');
-    
-    
     if (!errors.isEmpty()) {
-        return res.json({error: errors.array[0]})
+      return res.json({ error: errors.array()[0] }) 
     }
 
-    const conn = await pool.getConnection()
+    conn = await pool.getConnection()
+
+    const [result] = await conn.query(
+      `UPDATE usuarios 
+       SET last_message_at = CURRENT_TIMESTAMP 
+       WHERE id = ? 
+       AND last_message_at <= NOW() - INTERVAL 1 MINUTE`,
+      [req.user.id]
+    )
+
+    if (result.affectedRows === 0) {
+      return res.json({ error: 'Debes esperar 1 minuto para crear un hilo o mensaje' })
+    }
 
     const id_hilo = req.params.id_hilo
+    const { mensaje, id_mensaje_respuesta } = req.body
 
-    const {mensaje,id_mensaje_respuesta} = req.body
+    const [thread_exists] = await conn.query(
+      'SELECT titulo, mensajes, id_usuario FROM hilos WHERE id = ?',
+      [id_hilo]
+    )
 
-    const [thread_exists] = await conn.query('SELECT titulo, mensajes, id_usuario FROM hilos WHERE id = ?',[id_hilo])
+    if (thread_exists.length > 0) {
+      await conn.query(
+        'INSERT INTO mensajes (contenido,id_usuario,id_hilo,id_mensaje_respuesta) VALUES (?,?,?,?)',
+        [mensaje, req.user.id, id_hilo, id_mensaje_respuesta]
+      )
 
-    if (thread_exists.length>0) {
-        await conn.query('INSERT INTO mensajes (contenido,id_usuario,id_hilo,id_mensaje_respuesta) VALUES (?,?,?,?)',[mensaje,req.user.id,id_hilo,id_mensaje_respuesta])
+      await conn.query('UPDATE usuarios SET mensajes = mensajes + 1 WHERE id = ?', [req.user.id])
+      await conn.query('UPDATE hilos SET mensajes = mensajes + 1 WHERE id = ?', [id_hilo])
 
-        await conn.query('UPDATE usuarios SET mensajes = mensajes + 1 WHERE id = ?',[req.user.id])
+      const new_user = { ...req.user, mensajes: req.user.mensajes + 1 }
+      const token = jwt.sign(new_user, JWT_SECRET)
 
-        await conn.query('UPDATE hilos SET mensajes = mensajes + 1 WHERE id = ?',[id_hilo])
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: false,
+        sameSite: 'lax'
+      })
 
-        const new_user = {...req.user, mensajes: req.user.mensajes+1}
-
-        const token = jwt.sign(new_user,JWT_SECRET)
-
-        res.cookie('token',token,{
-            httpOnly: true,
-            secure: false,
-            sameSite: 'lax'
-        })
-
-        res.json({shared:true})
-
-
-    }else{
-        res.json({shared:false})
+      res.json({ shared: true })
+    } else {
+      res.json({ shared: false })
     }
-
-
-    
+  } catch (error) {
+    console.error(error)
+    res.json({ shared: false })
+  } finally {
+    if (conn) conn.release()
+  }
 })
+
 
 
 app.get('/mis_hilos/:page',authMiddleware,async(req,res)=>{
