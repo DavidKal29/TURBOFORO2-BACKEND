@@ -593,10 +593,10 @@ app.post('/crearHilo',authMiddleware,CSRFProtection,validadorCrearHilo,async(req
             return res.json({error: errors.array()[0].msg})
         }else{
 
-            const [result] = await conn.query('UPDATE usuarios SET last_message_at = CURRENT_TIMESTAMP WHERE id = ? AND last_message_at <= NOW() - INTERVAL 1 MINUTE',[req.user.id])
+            const [result] = await conn.query('UPDATE usuarios SET last_message_at = CURRENT_TIMESTAMP WHERE id = ? AND last_message_at <= NOW() - INTERVAL 15 SECOND',[req.user.id])
 
             if (result.affectedRows === 0) {
-                return res.json({ error: 'Debes esperar 1 minuto para crear un hilo o mensaje' })
+                return res.json({ error: 'Debes esperar 15 segundos para crear un hilo o mensaje' })
             }
             
             const {titulo,mensaje,categoria} = req.body
@@ -778,12 +778,12 @@ app.post('/hilo/:id_hilo', authMiddleware, validadorMensaje, CSRFProtection, asy
       `UPDATE usuarios 
        SET last_message_at = CURRENT_TIMESTAMP 
        WHERE id = ? 
-       AND last_message_at <= NOW() - INTERVAL 1 MINUTE`,
+       AND last_message_at <= NOW() - INTERVAL 15 SECOND`,
       [req.user.id]
     )
 
     if (result.affectedRows === 0) {
-      return res.json({ error: 'Debes esperar 1 minuto para crear un hilo o mensaje' })
+      return res.json({ error: 'Debes esperar 15 segundos para crear un hilo o mensaje' })
     }
 
     const id_hilo = req.params.id_hilo
@@ -854,6 +854,64 @@ app.get('/mis_hilos/:page',authMiddleware,async(req,res)=>{
         if (conn) conn.release(); 
     }
 
+})
+
+
+app.get('/delete/:id_hilo',authMiddleware,async(req,res)=>{
+    let conn;
+    try {
+       const conn = await pool.getConnection()
+
+       const id_hilo = req.params.id_hilo
+
+       console.log('El id del hilo:',id_hilo);
+       
+
+       const id_usuario = req.user.id
+
+       const [data] = await conn.query('SELECT * FROM hilos WHERE id = ? and id_usuario = ?',[id_hilo,id_usuario])
+
+       if (data.length>0) {
+        const id_categoria = data[0].id_categoria
+        const [messages_deleted] = await conn.query('DELETE FROM mensajes WHERE id_hilo = ? and id_usuario = ?',[id_hilo,id_usuario])
+        
+        if (messages_deleted.affectedRows>0) {
+            await conn.query('DELETE FROM hilos WHERE id = ? and id_usuario = ?',[id_hilo,id_usuario])
+            
+            await conn.query('UPDATE usuarios SET mensajes = mensajes - ?, hilos = hilos - 1 WHERE id = ?',[(req.user.mensajes - messages_deleted.affectedRows), req.user.id])
+
+            await conn.query('UPDATE categorias SET counter = counter - 1 WHERE id = ?',[id_categoria])
+
+            const new_user = {...req.user,mensajes: req.user.mensajes - messages_deleted.affectedRows, hilos: req.user.hilos - 1 }
+
+            const token = jwt.sign(new_user,JWT_SECRET)
+
+            res.cookie('token',token,{
+                httpOnly: true,
+                sameSite:'lax',
+                secure:false
+            })
+
+            return res.json({deleted:true})
+
+            
+        }else{
+            return res.json({deleted:false,message:'Error al borrar los mensaje'})
+        }
+        
+       }else{
+        return res.json({deleted:false,message:'Hilo inexistente o invalido para borrar'})
+       }
+
+    } catch (error) {
+        console.log('EL error:',error);
+        
+        return res.json({deleted:false,message:'Error al intentar borrar el hilo'})
+    }finally{
+        if (conn) {
+            conn.release()
+        }
+    }
 })
 
 
