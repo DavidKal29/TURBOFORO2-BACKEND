@@ -603,13 +603,6 @@ app.post('/crearHilo',authMiddleware,CSRFProtection,validadorCrearHilo,async(req
 
             console.log(typeof(req.user.id));
             
-            
-
-            const [user_verified] = await conn.query('SELECT * FROM usuarios WHERE id = ? and verificado = 1',[req.user.id])
-
-            if (!user_verified.length>0) {
-                return res.json({message:"Debes verificar tu email para poder crear hilos"})
-            }
 
             const [data] = await conn.query('SELECT * FROM categorias WHERE id = ?',[categoria])
 
@@ -932,6 +925,47 @@ app.get('/delete/:id_hilo',authMiddleware,async(req,res)=>{
         console.log('EL error:',error);
         
         return res.json({deleted:false,message:'Error al intentar borrar el hilo'})
+    }finally{
+        if (conn) {
+            conn.release()
+        }
+    }
+})
+
+
+app.get('/borrar_cuenta',authMiddleware,async(req,res)=>{
+    let conn
+    try {
+        const conn = await pool.getConnection()
+
+        await conn.query('DELETE FROM mensajes WHERE id_usuario = ?',[req.user.id])
+
+        const [hilos] = await conn.query('SELECT id,id_categoria FROM hilos WHERE id_usuario = ?',[req.user.id])
+
+        if (hilos.length>0) {
+            for (let i = 0; i < hilos.length; i++) {
+                const id_hilo = hilos[i].id
+                const id_categoria = hilos[i].id_categoria
+                await conn.query('UPDATE categorias SET counter = counter - 1 WHERE id = ?',[id_categoria])
+                
+            }
+        }
+
+        await conn.query('DELETE FROM hilos WHERE id_usuario = ?',[req.user.id]) 
+
+        await conn.query('DELETE FROM usuarios WHERE id = ?',[req.user.id])
+
+        console.log('Usuario borrado con éxito');
+        
+        return res.json({deleted:true})
+        
+    } catch (error) {
+        console.log(error);
+        
+        console.log('Error al borrar usuario');
+
+        return res.json({deleted:false})
+        
     }finally{
         if (conn) {
             conn.release()
