@@ -673,8 +673,18 @@ app.get('/hilos/:id_categoria/:page', async (req, res) => {
 
         const offset = 39 * (page - 1);
 
+        const consulta = `
+            SELECT h.*, DATE_FORMAT(h.fecha_registro, '%M %Y %H:%i') as fecha, u.username as username 
+            FROM hilos as h
+            INNER JOIN usuarios as u 
+            ON h.id_usuario = u.id 
+            WHERE h.id_categoria = ? 
+            ORDER BY id DESC 
+            LIMIT 39 OFFSET ?
+        `
+
         const [data] = await conn.query(
-            "SELECT *,DATE_FORMAT(fecha_registro, '%M %Y %H:%i') as fecha FROM hilos WHERE id_categoria = ? ORDER BY id DESC LIMIT 39 OFFSET ?",
+            consulta,
             [id_categoria, offset]
         );
 
@@ -843,10 +853,17 @@ app.get('/mis_hilos/:page',authMiddleware,async(req,res)=>{
 
         const offset = 39 * (page - 1);
 
-        const [data] = await conn.query(
-            "SELECT *,DATE_FORMAT(fecha_registro, '%M %Y %H:%i') as fecha FROM hilos WHERE id_usuario = ? ORDER BY id DESC LIMIT 39 OFFSET ?",
-            [req.user.id, offset]
-        );
+        const consulta = `
+            SELECT h.*, DATE_FORMAT(h.fecha_registro, '%M %Y %H:%i') as fecha, u.username as username 
+            FROM hilos as h
+            INNER JOIN usuarios as u 
+            ON h.id_usuario = u.id 
+            WHERE h.id_usuario = ? 
+            ORDER BY id DESC 
+            LIMIT 39 OFFSET ?
+        `
+
+        const [data] = await conn.query(consulta,[req.user.id, offset]);
 
         if (data.length > 0) {
             console.log('La respuesta ha obtenido datos');
