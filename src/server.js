@@ -769,22 +769,30 @@ app.post('/hilo/:id_hilo', authMiddleware, validadorMensaje, CSRFProtection, asy
   try {
     const errors = validationResult(req)
     if (!errors.isEmpty()) {
-      return res.json({ error: errors.array()[0] }) 
+      return res.json({ error: errors.array()[0].msg }) 
     }
 
     conn = await pool.getConnection()
 
-    const [result] = await conn.query(
-      `UPDATE usuarios 
-       SET last_message_at = CURRENT_TIMESTAMP 
-       WHERE id = ? 
-       AND last_message_at <= NOW() - INTERVAL 15 SECOND`,
+    const [[cooldown]] = await conn.query(
+      `SELECT GREATEST(0, TIMESTAMPDIFF(SECOND, last_message_at + INTERVAL 15 SECOND, NOW()) * -1) AS segundos_restantes
+       FROM usuarios WHERE id = ?`,
       [req.user.id]
     )
 
-    if (result.affectedRows === 0) {
-      return res.json({ error: 'Debes esperar 15 segundos para crear un hilo o mensaje' })
+    if (cooldown.segundos_restantes > 0) {
+      return res.json({
+        error: `Debes esperar ${cooldown.segundos_restantes} segundos para crear un hilo o mensaje`,
+        cooldown: cooldown.segundos_restantes
+      })
     }
+
+    await conn.query(
+      `UPDATE usuarios 
+       SET last_message_at = CURRENT_TIMESTAMP 
+       WHERE id = ?`,
+      [req.user.id]
+    )
 
     const id_hilo = req.params.id_hilo
     const { mensaje, id_mensaje_respuesta } = req.body
@@ -794,31 +802,31 @@ app.post('/hilo/:id_hilo', authMiddleware, validadorMensaje, CSRFProtection, asy
       [id_hilo]
     )
 
-    if (thread_exists.length > 0) {
-      await conn.query(
-        'INSERT INTO mensajes (contenido,id_usuario,id_hilo,id_mensaje_respuesta) VALUES (?,?,?,?)',
-        [mensaje, req.user.id, id_hilo, id_mensaje_respuesta]
-      )
-
-      await conn.query('UPDATE usuarios SET mensajes = mensajes + 1 WHERE id = ?', [req.user.id])
-      await conn.query('UPDATE hilos SET mensajes = mensajes + 1 WHERE id = ?', [id_hilo])
-
-      const new_user = { ...req.user, mensajes: req.user.mensajes + 1 }
-      const token = jwt.sign(new_user, JWT_SECRET)
-
-      res.cookie('token', token, {
-        httpOnly: true,
-        secure: false,
-        sameSite: 'lax'
-      })
-
-      res.json({ shared: true })
-    } else {
-      res.json({ shared: false })
+    if (thread_exists.length === 0) {
+      return res.json({ shared: false, error: 'El hilo no existe' })
     }
+
+    await conn.query(
+      'INSERT INTO mensajes (contenido,id_usuario,id_hilo,id_mensaje_respuesta) VALUES (?,?,?,?)',
+      [mensaje, req.user.id, id_hilo, id_mensaje_respuesta || null]
+    )
+
+    await conn.query('UPDATE usuarios SET mensajes = mensajes + 1 WHERE id = ?', [req.user.id])
+    await conn.query('UPDATE hilos SET mensajes = mensajes + 1 WHERE id = ?', [id_hilo])
+
+    const new_user = { ...req.user, mensajes: req.user.mensajes + 1 }
+    const token = jwt.sign(new_user, JWT_SECRET)
+
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: false,
+      sameSite: 'lax'
+    })
+
+    return res.json({ shared: true, cooldown: 15 }) 
   } catch (error) {
     console.error(error)
-    res.json({ shared: false })
+    res.json({ shared: false, error: 'Error interno' })
   } finally {
     if (conn) conn.release()
   }
