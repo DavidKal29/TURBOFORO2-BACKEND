@@ -945,6 +945,45 @@ app.get('/delete/:id_hilo',authMiddleware,async(req,res)=>{
     }
 })
 
+app.get('/delete_message/:id_mensaje',authMiddleware,async(req,res)=>{
+    let conn;
+    try {
+
+        console.log('Hemos entrado en la rutilla prohibidilla');
+        
+        const conn = await pool.getConnection()
+
+        const id_mensaje = req.params.id_mensaje
+
+        console.log('El id del mensaje:',id_mensaje);
+       
+        const id_usuario = req.user.id
+
+
+       const [data] = await conn.query('SELECT * FROM mensajes WHERE id = ? and id_usuario = ?',[id_mensaje,id_usuario])
+
+       if (data.length>0) {
+            await conn.query('DELETE FROM mensajes WHERE id = ? and id_usuario = ?',[id_mensaje,id_usuario]) 
+            console.log('Hilo borrado correctamente');
+            return res.json({deleted:true})
+       }else{
+        console.log('El mensaje que intentas borrar no existe');
+
+        return res.json({deleted:false,message:'El mensaje que intentas borrar no existe'})
+       }
+
+    } catch (error) {
+        console.log('EL error:',error);
+        
+        return res.json({deleted:false,message:'Error al intentar borrar el mensaje'})
+    }finally{
+        if (conn) {
+            conn.release()
+        }
+    }
+})
+
+
 
 app.get('/borrar_cuenta',authMiddleware,async(req,res)=>{
     let conn
