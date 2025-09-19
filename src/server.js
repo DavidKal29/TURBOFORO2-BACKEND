@@ -103,7 +103,29 @@ app.post('/login',CSRFProtection,async(req,res)=>{
         let {email,password} = req.body
 
         const conn = await pool.getConnection()
-        const [user_exists] = await conn.query('SELECT *,DATE_FORMAT(fecha_registro, "%d %M %Y") AS fecha,timestampdiff(YEAR, fecha_registro, NOW()) AS veterania  FROM usuarios WHERE email = ?',[email])
+        
+        const consulta = `
+            SELECT 
+                u.id, 
+                u.email, 
+                u.username,
+                u.password, 
+                u.id_avatar, 
+                u.description, 
+                u.rol, 
+                COUNT(DISTINCT h.id) AS hilos, 
+                COUNT(DISTINCT m.id) AS mensajes,
+                DATE_FORMAT(u.fecha_registro, "%d %M %Y") AS fecha, 
+                TIMESTAMPDIFF(YEAR, u.fecha_registro, NOW()) AS veterania
+            FROM usuarios u
+            LEFT JOIN hilos h ON u.id = h.id_usuario
+            LEFT JOIN mensajes m ON u.id = m.id_usuario
+            WHERE u.email = ?
+            GROUP BY u.id, u.email, u.username, u.id_avatar, u.description, u.rol, u.fecha_registro;
+
+        `
+        
+        const [user_exists] = await conn.query(consulta,[email])
 
         if (user_exists.length>0) {
             const equalPassword = await bcrypt.compare(password,user_exists[0].password)
@@ -205,7 +227,28 @@ app.post('/register',validadorRegister,CSRFProtection,async(req,res)=>{
             res.json({"message":"El usuario ya existe"})
         }else{
             await conn.query('INSERT INTO usuarios (email, username, password) VALUES (?,?,?)',[email,username,encriptedPassword])
-            const [user_exists] = await conn.query('SELECT *,DATE_FORMAT(fecha_registro, "%d %M %Y") AS fecha,timestampdiff(YEAR, fecha_registro, NOW()) AS veterania  FROM usuarios WHERE email = ?',[email])
+            
+            const consulta = `
+                SELECT 
+                    u.id, 
+                    u.email, 
+                    u.username, 
+                    u.id_avatar, 
+                    u.description, 
+                    u.rol, 
+                    COUNT(DISTINCT h.id) AS hilos, 
+                    COUNT(DISTINCT m.id) AS mensajes,
+                    DATE_FORMAT(u.fecha_registro, "%d %M %Y") AS fecha, 
+                    TIMESTAMPDIFF(YEAR, u.fecha_registro, NOW()) AS veterania
+                FROM usuarios u
+                LEFT JOIN hilos h ON u.id = h.id_usuario
+                LEFT JOIN mensajes m ON u.id = m.id_usuario
+                WHERE u.email = ?
+                GROUP BY u.id, u.email, u.username, u.id_avatar, u.description, u.rol, u.fecha_registro;
+
+            `
+
+            const [user_exists] = await conn.query(consulta,[email])
                 
             const user = {
                 id: user_exists[0].id,
@@ -243,7 +286,6 @@ app.post('/register',validadorRegister,CSRFProtection,async(req,res)=>{
 app.get('/perfil',authMiddleware,(req,res)=>{
     res.status(200).json({loggedIn:true,user:req.user})
 })
-
 
 const validadorEditPerfil = [
         body('email')
