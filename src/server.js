@@ -287,6 +287,7 @@ app.get('/perfil',authMiddleware,(req,res)=>{
     res.status(200).json({loggedIn:true,user:req.user})
 })
 
+
 const validadorEditPerfil = [
         body('email')
         .trim()
@@ -658,8 +659,6 @@ app.post('/crearHilo',authMiddleware,CSRFProtection,validadorCrearHilo,async(req
                     
                     await conn.query('INSERT INTO mensajes (contenido,id_usuario,id_hilo) VALUES (?,?,?)',[mensaje,req.user.id,id_hilo])
 
-                    await conn.query('UPDATE usuarios SET mensajes = mensajes + 1, hilos = hilos + 1 WHERE id = ?',[req.user.id])
-
                     await conn.query('UPDATE categorias SET counter = counter + 1 WHERE id = ?',[categoria])
 
                     await conn.query('UPDATE hilos SET mensajes = mensajes + 1 WHERE id = ?',[id_hilo])
@@ -869,7 +868,6 @@ app.post('/hilo/:id_hilo', authMiddleware, validadorMensaje, CSRFProtection, asy
       [mensaje, req.user.id, id_hilo, id_mensaje_respuesta || null]
     )
 
-    await conn.query('UPDATE usuarios SET mensajes = mensajes + 1 WHERE id = ?', [req.user.id])
     await conn.query('UPDATE hilos SET mensajes = mensajes + 1 WHERE id = ?', [id_hilo])
 
     const new_user = { ...req.user, mensajes: req.user.mensajes + 1 }
@@ -939,38 +937,39 @@ app.get('/delete/:id_hilo',authMiddleware,async(req,res)=>{
 
        console.log('El id del hilo:',id_hilo);
        
-
        const id_usuario = req.user.id
 
        const [data] = await conn.query('SELECT * FROM hilos WHERE id = ? and id_usuario = ?',[id_hilo,id_usuario])
 
        if (data.length>0) {
         const id_categoria = data[0].id_categoria
-        const [messages_deleted] = await conn.query('DELETE FROM mensajes WHERE id_hilo = ? and id_usuario = ?',[id_hilo,id_usuario])
+
+
+        await conn.query('DELETE FROM hilos WHERE id = ? and id_usuario = ?',[id_hilo,id_usuario])
+
+        await conn.query('UPDATE categorias SET counter = counter - 1 WHERE id = ?',[id_categoria])
+
+        const [messages] = await conn.query('SELECT COUNT(distinct id) as count FROM mensajes WHERE id_usuario = ?',[id_usuario])
+
+        let mensajes
         
-        if (messages_deleted.affectedRows>0) {
-            await conn.query('DELETE FROM hilos WHERE id = ? and id_usuario = ?',[id_hilo,id_usuario])
-            
-            await conn.query('UPDATE usuarios SET mensajes = mensajes - ?, hilos = hilos - 1 WHERE id = ?',[(req.user.mensajes - messages_deleted.affectedRows), req.user.id])
-
-            await conn.query('UPDATE categorias SET counter = counter - 1 WHERE id = ?',[id_categoria])
-
-            const new_user = {...req.user,mensajes: req.user.mensajes - messages_deleted.affectedRows, hilos: req.user.hilos - 1 }
-
-            const token = jwt.sign(new_user,JWT_SECRET)
-
-            res.cookie('token',token,{
-                httpOnly: true,
-                sameSite:'lax',
-                secure:false
-            })
-
-            return res.json({deleted:true})
-
-            
+        if (messages.length>0) {
+            mensajes = messages[0].count
         }else{
-            return res.json({deleted:false,message:'Error al borrar los mensaje'})
+            mensajes = 0
         }
+
+        const new_user = {...req.user,mensajes:mensajes, hilos: req.user.hilos - 1 }
+            
+        const token = jwt.sign(new_user,JWT_SECRET)
+
+        res.cookie('token',token,{
+            httpOnly: true,
+            sameSite:'lax',
+            secure:false
+        })
+
+        return res.json({deleted:true})
         
        }else{
         return res.json({deleted:false,message:'Hilo inexistente o invalido para borrar'})
@@ -1001,12 +1000,47 @@ app.get('/delete_message/:id_mensaje',authMiddleware,async(req,res)=>{
        
         const id_usuario = req.user.id
 
-
-       const [data] = await conn.query('SELECT * FROM mensajes WHERE id = ? and id_usuario = ?',[id_mensaje,id_usuario])
+        const [data] = await conn.query('SELECT * FROM mensajes WHERE id = ? and id_usuario = ?',[id_mensaje,id_usuario])
 
        if (data.length>0) {
-            await conn.query('DELETE FROM mensajes WHERE id = ? and id_usuario = ?',[id_mensaje,id_usuario]) 
-            console.log('Hilo borrado correctamente');
+
+            const id_hilo = data[0].id_hilo
+
+            await conn.query('DELETE FROM mensajes WHERE id = ? and id_usuario = ?',[id_mensaje, id_usuario])
+
+            const [total] = await conn.query('SELECT COUNT(distinct id) as count FROM mensajes WHERE id_hilo = ?',[id_hilo])
+
+            let mensajes_totales
+            if (total.length>0) {
+                
+                mensajes_totales = total[0].count
+            }else{
+                mensajes_totales = 0
+            }
+
+            await conn.query('UPDATE hilos SET mensajes = ? WHERE id = ?',[mensajes_totales,id_hilo])
+
+            const [messages] = await conn.query('SELECT COUNT(distinct id) as count FROM mensajes WHERE id_usuario = ?',[id_usuario])
+
+            let mensajes
+            
+            if (messages.length>0) {
+                mensajes = messages[0].count
+            }else{
+                mensajes = 0
+            }
+
+            const new_user = {...req.user,mensajes:mensajes}
+                
+            const token = jwt.sign(new_user,JWT_SECRET)
+
+            res.cookie('token',token,{
+                httpOnly: true,
+                sameSite:'lax',
+                secure:false
+            })
+            
+            console.log('Mensaje borrado correctamente');
             return res.json({deleted:true})
        }else{
         console.log('El mensaje que intentas borrar no existe');
@@ -1027,45 +1061,49 @@ app.get('/delete_message/:id_mensaje',authMiddleware,async(req,res)=>{
 
 
 
-app.get('/borrar_cuenta',authMiddleware,async(req,res)=>{
-    let conn
+app.get('/borrar_cuenta', authMiddleware, async (req, res) => {
+    let conn;
     try {
-        const conn = await pool.getConnection()
+        conn = await pool.getConnection();
 
-        await conn.query('DELETE FROM mensajes WHERE id_usuario = ?',[req.user.id])
+        const id_usuario = req.user.id;
 
-        const [hilos] = await conn.query('SELECT id,id_categoria FROM hilos WHERE id_usuario = ?',[req.user.id])
+        await conn.query('DELETE FROM usuarios WHERE id = ?', [id_usuario]);
 
-        if (hilos.length>0) {
-            for (let i = 0; i < hilos.length; i++) {
-                const id_hilo = hilos[i].id
-                const id_categoria = hilos[i].id_categoria
-                await conn.query('UPDATE categorias SET counter = counter - 1 WHERE id = ?',[id_categoria])
-                
-            }
-        }
+        await conn.query(`
+            UPDATE categorias c
+            LEFT JOIN (
+                SELECT id_categoria, COUNT(*) as count
+                FROM hilos
+                GROUP BY id_categoria
+            ) t ON c.id = t.id_categoria
+            SET c.counter = IFNULL(t.count, 0)
+        `);
 
-        await conn.query('DELETE FROM hilos WHERE id_usuario = ?',[req.user.id]) 
+        await conn.query(`
+            UPDATE hilos h
+            LEFT JOIN (
+                SELECT id_hilo, COUNT(*) as count
+                FROM mensajes
+                GROUP BY id_hilo
+            ) m ON h.id = m.id_hilo
+            SET h.mensajes = IFNULL(m.count, 0)
+        `);
 
-        await conn.query('DELETE FROM usuarios WHERE id = ?',[req.user.id])
+        console.log('Todo borrado con éxito');
+        return res.json({ deleted: true });
 
-        console.log('Usuario borrado con éxito');
-        
-        return res.json({deleted:true})
-        
     } catch (error) {
-        console.log(error);
-        
-        console.log('Error al borrar usuario');
-
-        return res.json({deleted:false})
-        
-    }finally{
-        if (conn) {
-            conn.release()
-        }
+        console.log('Error:', error);
+        return res.json({ deleted: false });
+    } finally {
+        if (conn) conn.release();
     }
-})
+});
+
+
+
+        
 
 
 
