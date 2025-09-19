@@ -1172,6 +1172,40 @@ app.get('/usuario/:id_usuario',async(req,res)=>{
 })
 
 
+app.get('/hilos_trending',async(req,res)=>{
+    let conn
+    try {
+        conn = await pool.getConnection()
+
+        const consulta = `
+            SELECT h.*, DATE_FORMAT(h.fecha_registro, '%M %Y %H:%i') as fecha, u.username as username 
+            FROM hilos as h
+            INNER JOIN usuarios as u 
+            ON h.id_usuario = u.id 
+            ORDER BY id DESC 
+            LIMIT 5
+        `
+
+        const [hilos] = await conn.query(consulta)
+
+        if (hilos.length>0) {
+            return res.json({hilos:hilos})
+        }else{
+            return res.json({hilos:[]})
+        }    
+        
+    } catch (error) {
+        console.log('Error:',error)
+        return res.json({message:'Error al obtener los datos'})
+       
+    }finally{
+        if (conn) {
+            conn.release()
+        }
+    }
+})
+
+
         
 
 
