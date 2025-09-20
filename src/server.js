@@ -317,38 +317,50 @@ const validadorEditPerfil = [
 
 app.post('/editar_perfil',validadorEditPerfil,CSRFProtection,authMiddleware,async(req,res)=>{
 
-    const errors = validationResult(req)
+    let conn
+    try {
+        const errors = validationResult(req)
 
-    if (!errors.isEmpty()) {
-        return res.status(400).json({error:errors.array()[0]})
-    }
+        if (!errors.isEmpty()) {
+            return res.status(400).json({error:errors.array()[0]})
+        }
 
 
-    const {email,username,description} = req.body
+        const {email,username,description} = req.body
 
-    if (email == req.user.email && username == req.user.username && description === req.user.description) {
-        res.status(400).json({changed:false, message:"Asegurate que al menos un campo sea distinto al original"})
-    }else{
-        const conn = await pool.getConnection()
-
-        const [data] = await conn.query('SELECT email, username FROM usuarios WHERE (email = ? or username = ?) and id != ?',[email, username,req.user.id])
-
-        if (data.length>0) {
-            res.status(400).json({changed:false, message:"Email o username ya están en uso"})
+        if (email == req.user.email && username == req.user.username && description === req.user.description) {
+            res.json({changed:false, message:"Asegurate que al menos un campo sea distinto al original"})
         }else{
-            await conn.query('UPDATE usuarios SET email = ?, username = ?, description = ? WHERE id = ?',[email,username,description,req.user.id])
+            conn = await pool.getConnection()
 
-            const new_user = {...req.user,email:email,username:username,description:description}
+            const [data] = await conn.query('SELECT email, username FROM usuarios WHERE (email = ? or username = ?) and id != ?',[email, username,req.user.id])
 
-            const token = jwt.sign(new_user,JWT_SECRET)
+            if (data.length>0) {
+                res.json({changed:false, message:"Email o username ya están en uso"})
+            
+            }else{
+                await conn.query('UPDATE usuarios SET email = ?, username = ?, description = ? WHERE id = ?',[email,username,description,req.user.id])
 
-            res.cookie('token',token,{
-                httpOnly: true,
-                secure: false,
-                sameSite: 'lax'
-            })
+                const new_user = {...req.user,email:email,username:username,description:description}
 
-            res.status(200).json({changed:true, message:"Datos cambiados con éxito"})
+                const token = jwt.sign(new_user,JWT_SECRET)
+
+                res.cookie('token',token,{
+                    httpOnly: true,
+                    secure: false,
+                    sameSite: 'lax'
+                })
+
+                res.json({changed:true, message:"Datos cambiados con éxito"})
+            }
+        }
+        
+    } catch (error) {
+        res.status(400).json({changed:false, message:"Error al enviar los datos"})
+        
+    }finally{
+        if (conn) {
+            conn.release()
         }
     }
 })
