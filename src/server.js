@@ -52,6 +52,9 @@ app.use('/',deleteDataRoutes)
 const userRoute = require('./routes/user.js')
 app.use('/',userRoute)
 
+const adminRoutes = require('./routes/admin.js')
+app.use('/',adminRoutes)
+
 
 //Puerto donde escuchará el servidor
 const PORT = process.env.PORT
