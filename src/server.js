@@ -1,45 +1,44 @@
+//Declaración de herramientas básicas para el servidor 
+// (cookies, validadores, encriptación, variables de entorno, base de datos, JWT, emails, etc.)
 const express = require('express')
 const app = express()
+
 const dotenv = require('dotenv').config()
 const pool = require('./db.js')
 const bcrypt = require('bcryptjs')
+
 const cors = require('cors')
 const jwt = require('jsonwebtoken')
+
 JWT_SECRET = process.env.JWT_SECRET
+
 const {body, validationResult} = require('express-validator')
 const csurf = require('csurf')
-
 const cookieParser = require('cookie-parser')
-
 
 const nodemailer = require('nodemailer')
 
 //Configuramos nodemailer para enviar correos
 const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.CORREO,
-    pass: process.env.PASSWORD_DEL_CORREO
-  }
+    service: "gmail",
+    auth: {
+        user: process.env.CORREO,
+        pass: process.env.PASSWORD_DEL_CORREO
+    }
 });
 
-
+//Middlewares globales
 app.use(express.json())
 app.use(express.urlencoded({extended:true}))
 app.use(cookieParser())
 
+//Utilizamos CORS para que nos lleguen peticiones satisfactorias
 app.use(cors({
     origin: process.env.FRONTEND_URL,
     credentials: true
 }))
 
-
-
-app.get('/',(req,res)=>{
-    res.send('Esto funciona')
-})
-
-
+//Middleware para verificar que el usuario está logueado
 const authMiddleware = async(req,res,next) =>{
     try {
         const token = req.cookies.token
@@ -63,25 +62,25 @@ const authMiddleware = async(req,res,next) =>{
     }
 }
 
-
-const CSRFProtection = csurf({
-    cookie:true
+//Ruta inicial
+app.get('/',(req,res)=>{
+    res.send('Esto funciona')
 })
+
+//Validación de CSRF para evitar secuestro de formularios
+const CSRFProtection = csurf({cookie:true})
 
 app.get('/csrf-token',CSRFProtection,(req,res)=>{
     res.json({csrfToken:req.csrfToken()})
 })
 
+//Ruta para obtener las categorias
 app.get('/categorias',async(req,res)=>{
+    let conn
     try {
-        const conn = await pool.getConnection()
-
-        console.log('La peticion de /categorias funciona y ha sido abierta');
+        conn = await pool.getConnection()
         
-
         const [data] = await conn.query('SELECT * FROM categorias')
-
-        conn.release();
 
         if (data.length>0) {
             console.log('Categorias obtenidas con éxito');
@@ -91,18 +90,21 @@ app.get('/categorias',async(req,res)=>{
             console.log('Las malditas categorias no han sido obtenidas');
             res.json({message:"Las categorias no han sido obtenidas"})
         }
+
     } catch (error) {
         res.json({message:"Las categorias no han sido obtenidas"})
+    }finally{
+        if (conn) conn.release();
     }
 })
 
 //Ruta de login
 app.post('/login',CSRFProtection,async(req,res)=>{
+    let conn
     try{
-
         let {email,password} = req.body
 
-        const conn = await pool.getConnection()
+        conn = await pool.getConnection()
         
         const consulta = `
             SELECT 
@@ -155,25 +157,24 @@ app.post('/login',CSRFProtection,async(req,res)=>{
                     sameSite:'lax'
                 })
 
-                conn.release()
                 res.json({"user":user_exists[0],"message":"Usuario logueado con éxito"})
             }else{
-                conn.release()
                 res.json({"message":"Contraseña o Email Incorrectos"})
             }
         }else{
-            conn.release()
             res.json({"message":"Contraseña o Email Incorrectos"})
         }
     }catch(error){
         console.log(error);
         
         res.status(500).json({message:"Error en login"})
+    }finally{
+        if (conn) conn.release();
     }
 })
 
 
-
+//Validador de los inputs del register
 const validadorRegister = [
         body('email')
         .trim()
@@ -205,10 +206,10 @@ const validadorRegister = [
     ]
 
 
-//Ruta de registro
+//Ruta de register
 app.post('/register',validadorRegister,CSRFProtection,async(req,res)=>{
+    let conn
     try{
-
         const errors = validationResult(req)
 
         if (!errors.isEmpty()) {
@@ -216,12 +217,11 @@ app.post('/register',validadorRegister,CSRFProtection,async(req,res)=>{
         }
 
         let {email,username,password} = req.body
-        const conn = await pool.getConnection()
+        conn = await pool.getConnection()
         const encriptedPassword = await bcrypt.hash(password,10)
         const [user_exists] = await conn.query('SELECT * FROM usuarios WHERE email = ? or username = ?',[email,username])
         
         if (user_exists.length>0) {
-            conn.release()
             console.log('El usuario ya existe');
             
             res.json({"message":"El usuario ya existe"})
@@ -273,21 +273,22 @@ app.post('/register',validadorRegister,CSRFProtection,async(req,res)=>{
                 sameSite:'lax'
             })
 
-            conn.release()
             res.json({"user":user,"message":"El usuario ha sido registrado"})
         }
     }catch(error){
         console.log(error);
         res.status(500).json({message:"Error en register"})
+    }finally{
+        if (conn) conn.release();
     }
 })
 
-
+//Ruta del perfil
 app.get('/perfil',authMiddleware,(req,res)=>{
     res.status(200).json({loggedIn:true,user:req.user})
 })
 
-
+//Validador de los inputs de editar perfil
 const validadorEditPerfil = [
         body('email')
         .trim()
@@ -315,6 +316,7 @@ const validadorEditPerfil = [
     ]
 
 
+//Ruta para editar el perfil
 app.post('/editar_perfil',validadorEditPerfil,CSRFProtection,authMiddleware,async(req,res)=>{
 
     let conn
@@ -324,7 +326,6 @@ app.post('/editar_perfil',validadorEditPerfil,CSRFProtection,authMiddleware,asyn
         if (!errors.isEmpty()) {
             return res.status(400).json({error:errors.array()[0]})
         }
-
 
         const {email,username,description} = req.body
 
@@ -359,50 +360,63 @@ app.post('/editar_perfil',validadorEditPerfil,CSRFProtection,authMiddleware,asyn
         res.status(400).json({changed:false, message:"Error al enviar los datos"})
         
     }finally{
-        if (conn) {
-            conn.release()
-        }
+        if (conn) conn.release();
     }
 })
 
 
+//Ruta para cerrar sesión
 app.get('/logout',authMiddleware,(req,res)=>{
-    res.clearCookie('token',{httpOnly:true, secure:false, sameSite:'lax'})
-
-    res.status(200).json({loggedOut:true})
-})
-
-app.post('/editar_avatar',authMiddleware,async(req,res)=>{
-    const {id_avatar} = req.body
-
-    if (id_avatar>24 || id_avatar<1) {
-        console.log("El id del avatar es invalido");
+    try {
+        res.clearCookie('token',{httpOnly:true, secure:false, sameSite:'lax'})
+        res.json({loggedOut:true})
         
-        res.json({changed:false, message:"El id del avatar es inválido"})
-    }else{
-        const conn = await pool.getConnection()
-
-        console.log("El id del avatar es valido");
-
-        await conn.query('UPDATE usuarios SET id_avatar = ? WHERE id = ?',[id_avatar,req.user.id])
-
-        const new_user = {...req.user,avatar:id_avatar}
-
-        const token = jwt.sign(new_user,JWT_SECRET)
-
-        res.cookie('token',token,{
-            httpOnly: true,
-            secure: false,
-            sameSite: 'lax'
-        })
-
-        res.json({changed:true, message:"Avatar cambiado con éxito"})
+    } catch (error) {
+        res.json({loggedOut:false})
     }
     
 })
 
 
+//Ruta para editar el avatar
+app.post('/editar_avatar',authMiddleware,async(req,res)=>{
+    let conn
+    try {
+        const {id_avatar} = req.body
 
+        if (id_avatar>24 || id_avatar<1) {
+            console.log("El id del avatar es invalido");
+            
+            res.json({changed:false, message:"El id del avatar es inválido"})
+        }else{
+            conn = await pool.getConnection()
+
+            console.log("El id del avatar es valido");
+
+            await conn.query('UPDATE usuarios SET id_avatar = ? WHERE id = ?',[id_avatar,req.user.id])
+
+            const new_user = {...req.user,avatar:id_avatar}
+
+            const token = jwt.sign(new_user,JWT_SECRET)
+
+            res.cookie('token',token,{
+                httpOnly: true,
+                secure: false,
+                sameSite: 'lax'
+            })
+
+            res.json({changed:true, message:"Avatar cambiado con éxito"})
+        }
+    } catch (error) {
+        res.json({changed:false, message:"Error al cambiar el avatar"})
+    }finally{
+        if (conn) conn.release();
+    }
+    
+})
+
+
+//Validador del email de recuperación de contraseña
 const validadorRecuperarPassword = [
         body('email')
         .trim()
@@ -415,6 +429,7 @@ const validadorRecuperarPassword = [
 
 //Ruta para enviar correo de recuperación
 app.post('/recuperarPassword',validadorRecuperarPassword,CSRFProtection,async(req,res)=>{
+    let conn
     try{
 
         const errors = validationResult(req)
@@ -423,7 +438,7 @@ app.post('/recuperarPassword',validadorRecuperarPassword,CSRFProtection,async(re
             return res.status(400).json({error:errors.array()[0]})
         }
 
-        const conn = await pool.getConnection()
+        conn = await pool.getConnection()
         const {email} = req.body
         const [user_exists] = await conn.query('SELECT * FROM usuarios WHERE email = ?',[email])
         if (user_exists.length>0) {
@@ -450,10 +465,12 @@ app.post('/recuperarPassword',validadorRecuperarPassword,CSRFProtection,async(re
         }
     }catch(error){
         res.status(500).json({message:"Error en recuperarPassword"})
+    }finally{
+        if (conn) conn.release();
     }
 })
 
-
+//Validador de cambio de contraseña
 const validadorChangePassword = [
         
         body('new_password')
@@ -471,11 +488,12 @@ const validadorChangePassword = [
 
 //Ruta para cambiar contraseña
 app.post('/cambiarPassword/:token',validadorChangePassword,CSRFProtection,async(req,res)=>{
+    let conn
     try{
         const errors = validationResult(req)
 
         const token = req.params.token
-        const conn = await pool.getConnection()
+        conn = await pool.getConnection()
        
         const decoded = jwt.verify(token,JWT_SECRET)
         const email = decoded.email
@@ -510,11 +528,13 @@ app.post('/cambiarPassword/:token',validadorChangePassword,CSRFProtection,async(
         }
     }catch(error){
         res.json({"message":"El enlace que estás usando es inválido"})
+    }finally{
+        if (conn) conn.release();
     }
 })
 
 
-
+//Ruta para enviar la verificación por email
 app.post('/enviar_verificacion',authMiddleware,(req,res)=>{
     try {
         const {email} = req.body
@@ -523,7 +543,6 @@ app.post('/enviar_verificacion',authMiddleware,(req,res)=>{
 
         console.log('El token:',token);
         
-
         const mailOptions = {
             from: process.env.CORREO,
             to: email,
@@ -545,9 +564,9 @@ app.post('/enviar_verificacion',authMiddleware,(req,res)=>{
     }
 })
 
-
+//Ruta para marcar como verificado al usuario
 app.get('/verificar/:token',authMiddleware,async(req,res)=>{
-
+    let conn
     try {
 
         console.log('El tokencillo va');
@@ -556,7 +575,7 @@ app.get('/verificar/:token',authMiddleware,async(req,res)=>{
 
         console.log('El token en verificar:',token);
 
-        const conn = await pool.getConnection()
+        conn = await pool.getConnection()
 
         const decoded = jwt.verify(token,JWT_SECRET)
 
@@ -564,7 +583,6 @@ app.get('/verificar/:token',authMiddleware,async(req,res)=>{
 
         console.log('la data:',data);
         
-
         if (data.length>0) {
             await conn.query('UPDATE usuarios SET verificado = 1 WHERE email = ?',[decoded.email])
 
@@ -611,12 +629,14 @@ app.get('/verificar/:token',authMiddleware,async(req,res)=>{
 
     } catch (error) {
         res.send('Enlace Inválido o Expirado')
+    }finally{
+        if (conn) conn.release();
     }
 
 })
 
 
-
+//Validador de los inputs de creación de hilos
 const validadorCrearHilo = [
         body('titulo')
         .trim()
@@ -633,7 +653,7 @@ const validadorCrearHilo = [
         
     ]
 
-
+//Ruta para crear un hilo
 app.post('/crearHilo',authMiddleware,CSRFProtection,validadorCrearHilo,async(req,res)=>{
     let conn
     try {
@@ -701,11 +721,11 @@ app.post('/crearHilo',authMiddleware,CSRFProtection,validadorCrearHilo,async(req
     } catch (error) {
         return res.json({message:"Error al crear hilo"})
     }finally {
-        if (conn){conn.release()}
+        if (conn) conn.release();
     }
 })
 
-
+//Ruta para obtener los hilos de una categoría específica
 app.get('/hilos/:id_categoria/:page', async (req, res) => {
     let conn
     try {
@@ -745,12 +765,12 @@ app.get('/hilos/:id_categoria/:page', async (req, res) => {
         console.error(error);
         res.json({ message: 'Datos erróneos' });
     } finally {
-        if (conn) conn.release(); 
+        if (conn) conn.release();
     }
 });
 
 
-
+//Ruta para obtener los mensajes de un hilo en específico
 app.get('/hilo/:id_hilo/:page',async(req,res)=>{
     let conn
     try {
@@ -817,12 +837,13 @@ app.get('/hilo/:id_hilo/:page',async(req,res)=>{
         res.json({message:'Error'})
         
     }finally{
-        if(conn){conn.release()}
+        if (conn) conn.release();
     }
     
     
 })
 
+//Validador del mensaje que se envía a un hilo
 const validadorMensaje = [
 
         body('mensaje')
@@ -833,75 +854,77 @@ const validadorMensaje = [
         .escape()
         
     ]
+
+//Ruta para enviar un mensaje al hilo
 app.post('/hilo/:id_hilo', authMiddleware, validadorMensaje, CSRFProtection, async (req, res) => {
-  let conn
-  try {
-    const errors = validationResult(req)
-    if (!errors.isEmpty()) {
-      return res.json({ error: errors.array()[0].msg }) 
+    let conn
+    try {
+        const errors = validationResult(req)
+        if (!errors.isEmpty()) {
+            return res.json({ error: errors.array()[0].msg }) 
+        }
+
+        conn = await pool.getConnection()
+
+        const [[cooldown]] = await conn.query(
+            `SELECT GREATEST(0, TIMESTAMPDIFF(SECOND, last_message_at + INTERVAL 15 SECOND, NOW()) * -1) AS segundos_restantes
+            FROM usuarios WHERE id = ?`,
+            [req.user.id]
+        )
+
+        if (cooldown.segundos_restantes > 0) {
+            return res.json({
+                error: `Debes esperar ${cooldown.segundos_restantes} segundos para crear un hilo o mensaje`,
+                cooldown: cooldown.segundos_restantes
+            })
+        }
+
+        await conn.query(
+            `UPDATE usuarios 
+            SET last_message_at = CURRENT_TIMESTAMP 
+            WHERE id = ?`,
+            [req.user.id]
+        )
+
+        const id_hilo = req.params.id_hilo
+        const { mensaje, id_mensaje_respuesta } = req.body
+
+        const [thread_exists] = await conn.query(
+            'SELECT titulo, mensajes, id_usuario FROM hilos WHERE id = ?',
+            [id_hilo]
+        )
+
+        if (thread_exists.length === 0) {
+            return res.json({ shared: false, error: 'El hilo no existe' })
+        }
+
+        await conn.query(
+            'INSERT INTO mensajes (contenido,id_usuario,id_hilo,id_mensaje_respuesta) VALUES (?,?,?,?)',
+            [mensaje, req.user.id, id_hilo, id_mensaje_respuesta || null]
+        )
+
+        await conn.query('UPDATE hilos SET mensajes = mensajes + 1 WHERE id = ?', [id_hilo])
+
+        const new_user = { ...req.user, mensajes: req.user.mensajes + 1 }
+        const token = jwt.sign(new_user, JWT_SECRET)
+
+        res.cookie('token', token, {
+            httpOnly: true,
+            secure: false,
+            sameSite: 'lax'
+        })
+
+        return res.json({ shared: true, cooldown: 15 }) 
+    } catch (error) {
+        console.error(error)
+        res.json({ shared: false, error: 'Error interno' })
+    } finally {
+        if (conn) conn.release();
     }
-
-    conn = await pool.getConnection()
-
-    const [[cooldown]] = await conn.query(
-      `SELECT GREATEST(0, TIMESTAMPDIFF(SECOND, last_message_at + INTERVAL 15 SECOND, NOW()) * -1) AS segundos_restantes
-       FROM usuarios WHERE id = ?`,
-      [req.user.id]
-    )
-
-    if (cooldown.segundos_restantes > 0) {
-      return res.json({
-        error: `Debes esperar ${cooldown.segundos_restantes} segundos para crear un hilo o mensaje`,
-        cooldown: cooldown.segundos_restantes
-      })
-    }
-
-    await conn.query(
-      `UPDATE usuarios 
-       SET last_message_at = CURRENT_TIMESTAMP 
-       WHERE id = ?`,
-      [req.user.id]
-    )
-
-    const id_hilo = req.params.id_hilo
-    const { mensaje, id_mensaje_respuesta } = req.body
-
-    const [thread_exists] = await conn.query(
-      'SELECT titulo, mensajes, id_usuario FROM hilos WHERE id = ?',
-      [id_hilo]
-    )
-
-    if (thread_exists.length === 0) {
-      return res.json({ shared: false, error: 'El hilo no existe' })
-    }
-
-    await conn.query(
-      'INSERT INTO mensajes (contenido,id_usuario,id_hilo,id_mensaje_respuesta) VALUES (?,?,?,?)',
-      [mensaje, req.user.id, id_hilo, id_mensaje_respuesta || null]
-    )
-
-    await conn.query('UPDATE hilos SET mensajes = mensajes + 1 WHERE id = ?', [id_hilo])
-
-    const new_user = { ...req.user, mensajes: req.user.mensajes + 1 }
-    const token = jwt.sign(new_user, JWT_SECRET)
-
-    res.cookie('token', token, {
-      httpOnly: true,
-      secure: false,
-      sameSite: 'lax'
-    })
-
-    return res.json({ shared: true, cooldown: 15 }) 
-  } catch (error) {
-    console.error(error)
-    res.json({ shared: false, error: 'Error interno' })
-  } finally {
-    if (conn) conn.release()
-  }
 })
 
 
-
+//Ruta para obtener todos los hilos de un usuario logueado
 app.get('/mis_hilos/:page',authMiddleware,async(req,res)=>{
     let conn
     try {
@@ -940,6 +963,7 @@ app.get('/mis_hilos/:page',authMiddleware,async(req,res)=>{
 })
 
 
+//Ruta para eliminar un hilo
 app.get('/delete/:id_hilo',authMiddleware,async(req,res)=>{
     let conn;
     try {
@@ -992,12 +1016,12 @@ app.get('/delete/:id_hilo',authMiddleware,async(req,res)=>{
         
         return res.json({deleted:false,message:'Error al intentar borrar el hilo'})
     }finally{
-        if (conn) {
-            conn.release()
-        }
+        if (conn) conn.release();
     }
 })
 
+
+//Ruta para eliminar un mensaje de un hilo
 app.get('/delete_message/:id_mensaje', authMiddleware, async (req, res) => {
     let conn;
     try {
@@ -1070,15 +1094,12 @@ app.get('/delete_message/:id_mensaje', authMiddleware, async (req, res) => {
         console.log('EL error:', error);
         return res.json({ deleted: false, message: 'Error al intentar borrar el mensaje' })
     } finally {
-        if (conn) {
-            conn.release()
-        }
+        if (conn) conn.release();
     }
 })
 
 
-
-
+//Ruta para borrar la cuenta y todos sus datos
 app.get('/borrar_cuenta', authMiddleware, async (req, res) => {
     let conn;
     try {
@@ -1113,13 +1134,14 @@ app.get('/borrar_cuenta', authMiddleware, async (req, res) => {
 
     } catch (error) {
         console.log('Error:', error);
-        return res.json({ deleted: false });
+        return res.json({ deleted: false })
     } finally {
         if (conn) conn.release();
     }
 });
 
 
+//Ruta para obtener los datos públicos de un usuario
 app.get('/usuario/:id_usuario',async(req,res)=>{
     let conn
     try {
@@ -1127,7 +1149,6 @@ app.get('/usuario/:id_usuario',async(req,res)=>{
         const id_usuario = req.params.id_usuario
 
         console.log('Hemos recibido peticiones a esta url');
-        
 
         const consulta = `
             SELECT 
@@ -1164,32 +1185,23 @@ app.get('/usuario/:id_usuario',async(req,res)=>{
                 rol: user_exists[0].rol,
                 veterania: user_exists[0].veterania
             }
-
-            console.log('Los datos del usuario:',user_data);
             
-
             return res.json({user_data: user_data})
 
-        }else{
-
-            console.log('No se ha encontrado al usuario');
-            
+        }else{ 
             return res.json({user_data:null})
         }
-
-        
         
     } catch (error) {
         console.log('El error:',error);
         return res.json({user_data:null})
     }finally{
-        if (conn) {
-            conn.release()
-        }
+        if (conn) conn.release();
     }
 })
 
 
+//Ruta para obtener los hilos más recientes y trending
 app.get('/hilos_trending',async(req,res)=>{
     let conn
     try {
@@ -1217,21 +1229,15 @@ app.get('/hilos_trending',async(req,res)=>{
         return res.json({message:'Error al obtener los datos'})
        
     }finally{
-        if (conn) {
-            conn.release()
-        }
+        if (conn) conn.release();
     }
 })
 
 
-        
-
-
-
-
+//Puerto donde escuchará el servidor
 const PORT = process.env.PORT
 
+//Inicialización del servidor
 app.listen(PORT,()=>{
-    console.log('Escuhando en el puerto', PORT);
-    
+    console.log('Escuchando en el puerto', PORT);
 })
