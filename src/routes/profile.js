@@ -10,7 +10,7 @@ const authMiddleware = require('./middlewares/authMiddleware.js')
 
 //Ruta del perfil
 router.get('/perfil',authMiddleware,(req,res)=>{
-    try {
+    try {  
         res.json({loggedIn:true,user:req.user})
     } catch (error) {
         res.json({loggedIn:false})
