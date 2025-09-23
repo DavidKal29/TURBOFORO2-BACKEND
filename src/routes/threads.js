@@ -25,8 +25,9 @@ router.get('/home',async(req,res)=>{
             FROM hilos AS h
             INNER JOIN usuarios AS u 
                 ON h.id_usuario = u.id
-            ORDER BY h.id DESC
-            LIMIT 3
+            ORDER BY h.fecha_registro DESC
+            LIMIT 3;
+
         `
 
         const [hilos_exists] = await conn.query(consulta)
@@ -52,7 +53,6 @@ router.get('/home',async(req,res)=>{
             stats = {}
         }
 
-        console.log(hilos, stats);
         
 
         return res.json({hilosTrending:hilos, stats:stats})

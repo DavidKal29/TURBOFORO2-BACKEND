@@ -8,4 +8,5 @@ const pool = mysql2.createPool({
     database: process.env.DATABASE
 })
 
+
 module.exports = pool
