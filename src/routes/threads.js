@@ -10,12 +10,14 @@ const JWT_SECRET = process.env.JWT_SECRET
 
 
 //Ruta para obtener los hilos más recientes y trending
-router.get('/hilos_trending',async(req,res)=>{
+router.get('/home',async(req,res)=>{
     let conn
     try {
         conn = await pool.getConnection()
+        let hilos;
+        let stats;
 
-        const consulta = `
+        let consulta = `
             SELECT 
                 h.*, 
                 DATE_FORMAT(h.fecha_registro, '%M %Y %H:%i') AS fecha, 
@@ -23,17 +25,37 @@ router.get('/hilos_trending',async(req,res)=>{
             FROM hilos AS h
             INNER JOIN usuarios AS u 
                 ON h.id_usuario = u.id
-            ORDER BY h.mensajes DESC, h.id DESC
-            LIMIT 5
+            ORDER BY h.id DESC
+            LIMIT 3
         `
 
-        const [hilos] = await conn.query(consulta)
+        const [hilos_exists] = await conn.query(consulta)
 
-        if (hilos.length>0) {
-            return res.json({hilos:hilos})
+        if (hilos_exists.length>0) {
+            hilos = hilos_exists
         }else{
-            return res.json({hilos:[]})
-        }    
+            hilos = []
+        }   
+        
+        consulta = `
+            SELECT
+                (SELECT COUNT(DISTINCT id) FROM usuarios) AS usuarios,
+                (SELECT COUNT(DISTINCT id) FROM hilos) AS hilos,
+                (SELECT COUNT(DISTINCT id) FROM mensajes) AS mensajes;
+        `
+
+        const [data] = await conn.query(consulta)
+
+        if (data.length>0) {
+            stats = {usuarios:data[0].usuarios, hilos:data[0].hilos, mensajes:data[0].mensajes}
+        }else{
+            stats = {}
+        }
+
+        console.log(hilos, stats);
+        
+
+        return res.json({hilosTrending:hilos, stats:stats})
         
     } catch (error) {
         console.log('Error:',error)
