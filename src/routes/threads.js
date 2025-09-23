@@ -235,7 +235,7 @@ router.get('/hilo/:id_hilo/:page',async(req,res)=>{
                         WHERE temp.id_hilo = m.id_hilo
                         AND temp.id <= mr.id
                     ) / 39) AS page_mensaje_respuesta
-                FROM turboforo2.mensajes AS m
+                FROM mensajes AS m
                 INNER JOIN usuarios AS u ON m.id_usuario = u.id
                 LEFT JOIN mensajes AS mr ON m.id_mensaje_respuesta = mr.id
                 LEFT JOIN usuarios AS u_mr ON mr.id_usuario = u_mr.id
@@ -265,6 +265,8 @@ router.get('/hilo/:id_hilo/:page',async(req,res)=>{
         }
     } catch (error) {
         console.log('Error al obtener datos del hilo');
+        console.log(error);
+        
         res.json({message:'Error'})
         
     }finally{
