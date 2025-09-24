@@ -134,8 +134,8 @@ router.post('/crearHilo',authMiddleware,CSRFProtection,validadorCrearHilo,async(
 
                     res.cookie('token',token,{
                         httpOnly: true,
-                        secure: false,
-                        sameSite: 'lax'
+                        secure: true,
+                        sameSite: 'none'
                     })
 
                     return res.json({message:"Hilo creado con éxito",id_hilo:id_hilo})
@@ -244,10 +244,7 @@ router.get('/hilo/:id_hilo/:page',async(req,res)=>{
                 LIMIT 39 OFFSET ?;
 
             `
-
             const [data] = await conn.query(consulta,[id_hilo,offset])
-
-            
 
             if (data.length>0) {
                 console.log('Los datos tienen length');
@@ -343,8 +340,8 @@ router.post('/hilo/:id_hilo', authMiddleware, validadorMensaje, CSRFProtection, 
 
         res.cookie('token', token, {
             httpOnly: true,
-            secure: false,
-            sameSite: 'lax'
+            secure: true,
+            sameSite: 'none'
         })
 
         return res.json({ shared: true, cooldown: 15 }) 

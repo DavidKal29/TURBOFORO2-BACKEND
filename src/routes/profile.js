@@ -78,8 +78,8 @@ router.post('/editar_perfil',validadorEditPerfil,CSRFProtection,authMiddleware,a
 
                 res.cookie('token',token,{
                     httpOnly: true,
-                    secure: false,
-                    sameSite: 'lax'
+                    secure: true,
+                    sameSite: 'none'
                 })
 
                 res.json({changed:true, message:"Datos cambiados con éxito"})
@@ -121,8 +121,8 @@ router.post('/editar_avatar',authMiddleware,async(req,res)=>{
 
             res.cookie('token',token,{
                 httpOnly: true,
-                secure: false,
-                sameSite: 'lax'
+                secure: true,
+                sameSite: 'none'
             })
 
             res.json({changed:true, message:"Avatar cambiado con éxito"})

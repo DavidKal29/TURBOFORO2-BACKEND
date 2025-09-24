@@ -52,8 +52,8 @@ router.get('/admin/delete/:id_hilo',authMiddleware,async(req,res)=>{
 
         res.cookie('token',token,{
             httpOnly: true,
-            sameSite:'lax',
-            secure:false
+            sameSite:'none',
+            secure:true
         })
 
         return res.json({deleted:true})
@@ -135,8 +135,8 @@ router.get('/admin/delete_message/:id_mensaje', authMiddleware, async (req, res)
 
             res.cookie('token', token, {
                 httpOnly: true,
-                sameSite: 'lax',
-                secure: false
+                sameSite: 'none',
+                secure: true
             })
             
             console.log('Mensaje borrado correctamente');

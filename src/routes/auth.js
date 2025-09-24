@@ -65,9 +65,9 @@ router.post('/login',CSRFProtection,async(req,res)=>{
 
                 res.cookie('token',token,{
                     httpOnly: true,
-                    secure: false,
+                    secure: true,
                     maxAge: 3600 * 1000,
-                    sameSite:'lax'
+                    sameSite:'none'
                 })
 
                 res.json({"user":user_exists[0],"message":"Usuario logueado con éxito"})
@@ -182,9 +182,9 @@ router.post('/register',validadorRegister,CSRFProtection,async(req,res)=>{
 
             res.cookie('token',token,{
                 httpOnly: true,
-                secure: false,
+                secure: true,
                 maxAge: 3600 * 1000,
-                sameSite:'lax'
+                sameSite:'none'
             })
 
             res.json({"user":user,"message":"El usuario ha sido registrado"})
@@ -201,7 +201,7 @@ router.post('/register',validadorRegister,CSRFProtection,async(req,res)=>{
 //Ruta para cerrar sesión
 router.get('/logout',authMiddleware,(req,res)=>{
     try {
-        res.clearCookie('token',{httpOnly:true, secure:false, sameSite:'lax'})
+        res.clearCookie('token',{httpOnly:true, secure:true, sameSite:'none'})
         res.json({loggedOut:true})
         
     } catch (error) {
