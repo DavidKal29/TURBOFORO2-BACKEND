@@ -7,6 +7,7 @@ const jwt = require('jsonwebtoken')
 const dotenv = require('dotenv').config()
 const JWT_SECRET = process.env.JWT_SECRET
 const authMiddleware = require('./middlewares/authMiddleware.js')
+const options = require('./middlewares/options.js')
 
 //Ruta del perfil
 router.get('/perfil',authMiddleware,(req,res)=>{
@@ -76,11 +77,7 @@ router.post('/editar_perfil',validadorEditPerfil,CSRFProtection,authMiddleware,a
 
                 const token = jwt.sign(new_user,JWT_SECRET)
 
-                res.cookie('token',token,{
-                    httpOnly: true,
-                    secure: true,
-                    sameSite: 'none'
-                })
+                res.cookie('token',token,options)
 
                 res.json({changed:true, message:"Datos cambiados con éxito"})
             }
@@ -119,11 +116,7 @@ router.post('/editar_avatar',authMiddleware,async(req,res)=>{
 
             const token = jwt.sign(new_user,JWT_SECRET)
 
-            res.cookie('token',token,{
-                httpOnly: true,
-                secure: true,
-                sameSite: 'none'
-            })
+            res.cookie('token',token,options)
 
             res.json({changed:true, message:"Avatar cambiado con éxito"})
         }

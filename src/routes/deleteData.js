@@ -5,6 +5,7 @@ const authMiddleware = require('./middlewares/authMiddleware.js')
 const jwt = require('jsonwebtoken')
 const dotenv = require('dotenv').config()
 const JWT_SECRET = process.env.JWT_SECRET
+const options = require('./middlewares/options.js')
 
 
 
@@ -44,11 +45,7 @@ router.get('/delete/:id_hilo',authMiddleware,async(req,res)=>{
             
         const token = jwt.sign(new_user,JWT_SECRET)
 
-        res.cookie('token',token,{
-            httpOnly: true,
-            sameSite:'none',
-            secure:true
-        })
+        res.cookie('token',token,options)
 
         return res.json({deleted:true})
         
@@ -122,11 +119,7 @@ router.get('/delete_message/:id_mensaje', authMiddleware, async (req, res) => {
             const new_user = { ...req.user, mensajes: mensajes }
             const token = jwt.sign(new_user, JWT_SECRET)
 
-            res.cookie('token', token, {
-                httpOnly: true,
-                sameSite: 'none',
-                secure: true
-            })
+            res.cookie('token', token, options)
             
             console.log('Mensaje borrado correctamente');
             return res.json({ deleted: true })

@@ -8,6 +8,8 @@ const jwt = require('jsonwebtoken')
 const dotenv = require('dotenv').config()
 const JWT_SECRET = process.env.JWT_SECRET
 const authMiddleware = require('./middlewares/authMiddleware.js')
+const options = require('./middlewares/options.js')
+
 
 
 //Ruta de login
@@ -63,12 +65,7 @@ router.post('/login',CSRFProtection,async(req,res)=>{
                 
                 const token = jwt.sign(user,JWT_SECRET,{expiresIn:'1h'})
 
-                res.cookie('token',token,{
-                    httpOnly: true,
-                    secure: true,
-                    maxAge: 3600 * 1000,
-                    sameSite:'none'
-                })
+                res.cookie('token',token,options)
 
                 res.json({"user":user_exists[0],"message":"Usuario logueado con éxito"})
             }else{
@@ -180,12 +177,7 @@ router.post('/register',validadorRegister,CSRFProtection,async(req,res)=>{
 
             const token = jwt.sign(user,JWT_SECRET,{expiresIn:'1h'})
 
-            res.cookie('token',token,{
-                httpOnly: true,
-                secure: true,
-                maxAge: 3600 * 1000,
-                sameSite:'none'
-            })
+            res.cookie('token',token,options)
 
             res.json({"user":user,"message":"El usuario ha sido registrado"})
         }
@@ -201,7 +193,7 @@ router.post('/register',validadorRegister,CSRFProtection,async(req,res)=>{
 //Ruta para cerrar sesión
 router.get('/logout',authMiddleware,(req,res)=>{
     try {
-        res.clearCookie('token',{httpOnly:true, secure:true, sameSite:'none'})
+        res.clearCookie('token',options)
         res.json({loggedOut:true})
         
     } catch (error) {

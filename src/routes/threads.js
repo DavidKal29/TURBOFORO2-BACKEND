@@ -7,6 +7,7 @@ const authMiddleware = require('./middlewares/authMiddleware.js')
 const jwt = require('jsonwebtoken')
 const dotenv = require('dotenv').config()
 const JWT_SECRET = process.env.JWT_SECRET
+const options = require('./middlewares/options.js')
 
 
 //Ruta para obtener los hilos más recientes y trending
@@ -132,11 +133,7 @@ router.post('/crearHilo',authMiddleware,CSRFProtection,validadorCrearHilo,async(
 
                     const token = jwt.sign(new_user,JWT_SECRET)
 
-                    res.cookie('token',token,{
-                        httpOnly: true,
-                        secure: true,
-                        sameSite: 'none'
-                    })
+                    res.cookie('token',token,options)
 
                     return res.json({message:"Hilo creado con éxito",id_hilo:id_hilo})
 
@@ -338,11 +335,7 @@ router.post('/hilo/:id_hilo', authMiddleware, validadorMensaje, CSRFProtection, 
         const new_user = { ...req.user, mensajes: req.user.mensajes + 1 }
         const token = jwt.sign(new_user, JWT_SECRET)
 
-        res.cookie('token', token, {
-            httpOnly: true,
-            secure: true,
-            sameSite: 'none'
-        })
+        res.cookie('token', token, options)
 
         return res.json({ shared: true, cooldown: 15 }) 
     } catch (error) {

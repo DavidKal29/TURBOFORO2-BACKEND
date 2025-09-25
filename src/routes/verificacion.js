@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken')
 const dotenv = require('dotenv').config()
 const JWT_SECRET = process.env.JWT_SECRET
 const transporter = require('../utils/transporter.js')
+const options = require('./middlewares/options.js')
 
 //Ruta para enviar la verificación por email
 router.post('/enviar_verificacion',authMiddleware,(req,res)=>{
@@ -65,11 +66,7 @@ router.get('/verificar/:token',authMiddleware,async(req,res)=>{
 
             const token = jwt.sign(new_user,JWT_SECRET)
 
-            res.cookie('token',token,{
-                httpOnly: true,
-                secure: true,
-                sameSite: 'none'
-            })
+            res.cookie('token',token,options)
 
              res.send(`
                     <!doctype html>
