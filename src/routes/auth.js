@@ -15,6 +15,7 @@ const options = require('./middlewares/options.js')
 //Ruta de login
 router.post('/login',CSRFProtection,async(req,res)=>{
     let conn
+    
     try{
         let {email,password} = req.body
 
@@ -182,8 +183,11 @@ router.post('/register',validadorRegister,CSRFProtection,async(req,res)=>{
             res.json({"user":user,"message":"El usuario ha sido registrado"})
         }
     }catch(error){
+        console.log('Hemos caido en el catch');
+        
         console.log(error);
-        res.status(500).json({message:"Error en register"})
+        const errorcillo = error
+        res.status(500).json({horror:errorcillo})
     }finally{
         if (conn) conn.release();
     }
