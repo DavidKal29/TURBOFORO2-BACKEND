@@ -10,49 +10,63 @@ const options = require('./middlewares/options.js')
 
 
 //Ruta para eliminar un hilo
-router.get('/delete/:id_hilo',authMiddleware,async(req,res)=>{
+router.get('/delete_thread/:id_hilo',authMiddleware,async(req,res)=>{
     let conn;
+    let admin;
+    let author;
     try {
-       const conn = await pool.getConnection()
+        conn = await pool.getConnection()
 
-       const id_hilo = req.params.id_hilo
+        const id_hilo = req.params.id_hilo
 
-       console.log('El id del hilo:',id_hilo);
+        const [thread_exists] = await conn.query('SELECT * FROM hilos WHERE id = ?',[id_hilo])
+
+        if (thread_exists.length<=0) {
+            return res.json({deleted: false, message: 'El hilo que intentas borrar no existe'})
+        }
        
-       const id_usuario = req.user.id
+        const id_usuario = req.user.id
 
-       const [data] = await conn.query('SELECT * FROM hilos WHERE id = ? and id_usuario = ?',[id_hilo,id_usuario])
+        const [is_admin] = await conn.query('SELECT * FROM usuarios WHERE id = ? and rol = "admin"',[id_usuario])
 
-       if (data.length>0) {
-        const id_categoria = data[0].id_categoria
-
-
-        await conn.query('DELETE FROM hilos WHERE id = ? and id_usuario = ?',[id_hilo,id_usuario])
-
-        await conn.query('UPDATE categorias SET counter = counter - 1 WHERE id = ?',[id_categoria])
-
-        const [messages] = await conn.query('SELECT COUNT(distinct id) as count FROM mensajes WHERE id_usuario = ?',[id_usuario])
-
-        let mensajes
-        
-        if (messages.length>0) {
-            mensajes = messages[0].count
+        if (is_admin.length>0) {
+            console.log('EL usuario es admin');
+            admin = true
+            
         }else{
-            mensajes = 0
+            console.log('El usuario no es admin');
+            admin = false 
         }
 
-        const new_user = {...req.user,mensajes:mensajes, hilos: req.user.hilos - 1 }
+        const [data] = await conn.query('SELECT * FROM hilos WHERE id = ? and id_usuario = ?',[id_hilo,id_usuario])
+
+        if (data.length > 0) {
+            console.log('EL usuario es autor del hilo');
+            author = true
             
-        const token = jwt.sign(new_user,JWT_SECRET)
+        } else {
+            console.log('El usuario no es autor del hilo');
+            author = false
+        }
 
-        res.cookie('token',token,options)
+        const id_categoria = thread_exists[0].id_categoria
 
-        return res.json({deleted:true})
-        
-       }else{
-        return res.json({deleted:false,message:'Hilo inexistente o invalido para borrar'})
-       }
+        if (admin || author) {
+            
 
+            if (admin) {
+                await conn.query('DELETE FROM hilos WHERE id = ?',[id_hilo])
+            }else if (author) {
+                await conn.query('DELETE FROM hilos WHERE id = ? and id_usuario = ?',[id_hilo,id_usuario])
+            }
+
+            await conn.query('UPDATE categorias SET counter = counter - 1 WHERE id = ?',[id_categoria])
+
+            return res.json({deleted:true})
+        }else{
+            return res.json({deleted:false,message:'No tienes permisos sobre este hilo'})
+        }
+    
     } catch (error) {
         console.log('EL error:',error);
         
@@ -66,23 +80,53 @@ router.get('/delete/:id_hilo',authMiddleware,async(req,res)=>{
 //Ruta para eliminar un mensaje de un hilo
 router.get('/delete_message/:id_mensaje', authMiddleware, async (req, res) => {
     let conn;
+    let admin;
+    let author;
     try {
         console.log('Hemos entrado en la rutilla prohibidilla');
         
         conn = await pool.getConnection()
 
         const id_mensaje = req.params.id_mensaje
-        console.log('El id del mensaje:', id_mensaje);
        
         const id_usuario = req.user.id
 
-        const [data] = await conn.query(
-            'SELECT * FROM mensajes WHERE id = ? AND id_usuario = ?',
-            [id_mensaje, id_usuario]
-        )
+        const [message_exists] = await conn.query('SELECT * FROM mensajes WHERE id = ?',[id_mensaje])
+
+        if (message_exists.length<=0) {
+            return res.json({deleted: false, message: 'El mensaje que intentas borrar no existe'})
+        }
+
+
+        const [is_admin] = await conn.query('SELECT * FROM usuarios WHERE id = ? and rol = "admin"',[id_usuario])
+
+        if (is_admin.length>0) {
+            console.log('EL usuario es admin');
+            admin = true
+            
+        }else{
+            console.log('El usuario no es admin');
+            admin = false 
+        }
+
+        const [data] = await conn.query('SELECT * FROM mensajes WHERE id = ?',[id_mensaje, id_usuario])
 
         if (data.length > 0) {
-            const id_hilo = data[0].id_hilo
+            console.log('EL usuario es autor del mensaje');
+            author = true
+            
+        } else {
+            console.log('El usuario no es autor del mensaje');
+            author = false
+        }
+
+
+        const id_hilo = message_exists[0].id_hilo
+
+        if (admin || author) {
+            
+            console.log('El hilo id:',id_hilo);
+            
 
             const [primerMensaje] = await conn.query(
                 'SELECT id FROM mensajes WHERE id_hilo = ? ORDER BY id ASC LIMIT 1',
@@ -94,7 +138,12 @@ router.get('/delete_message/:id_mensaje', authMiddleware, async (req, res) => {
                 return res.json({ deleted: false, message: 'No puedes borrar el primer mensaje del hilo' })
             }
 
-            await conn.query('DELETE FROM mensajes WHERE id = ? AND id_usuario = ?', [id_mensaje, id_usuario])
+            if (admin) {
+                await conn.query('DELETE FROM mensajes WHERE id = ?', [id_mensaje])
+            }else if (author) {
+                await conn.query('DELETE FROM mensajes WHERE id = ? and id_usuario = ?', [id_mensaje, id_usuario])
+            }
+           
 
             const [total] = await conn.query('SELECT COUNT(distinct id) as count FROM mensajes WHERE id_hilo = ?', [id_hilo])
 
@@ -107,26 +156,13 @@ router.get('/delete_message/:id_mensaje', authMiddleware, async (req, res) => {
 
             await conn.query('UPDATE hilos SET mensajes = ? WHERE id = ?', [mensajes_totales, id_hilo])
 
-            const [messages] = await conn.query('SELECT COUNT(distinct id) as count FROM mensajes WHERE id_usuario = ?', [id_usuario])
-
-            let mensajes
-            if (messages.length > 0) {
-                mensajes = messages[0].count
-            } else {
-                mensajes = 0
-            }
-
-            const new_user = { ...req.user, mensajes: mensajes }
-            const token = jwt.sign(new_user, JWT_SECRET)
-
-            res.cookie('token', token, options)
             
             console.log('Mensaje borrado correctamente');
             return res.json({ deleted: true })
-        } else {
-            console.log('El mensaje que intentas borrar no existe');
-            return res.json({ deleted: false, message: 'El mensaje que intentas borrar no existe' })
+        }else{
+            return res.json({ deleted: false, message: 'No tienes permisos sobre este mensaje' })
         }
+
 
     } catch (error) {
         console.log('EL error:', error);

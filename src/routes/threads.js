@@ -450,6 +450,9 @@ router.get('/user_mensajes/:id_user/:page',async(req,res)=>{
         const page = Number(req.params.page);
         const id_user = Number(req.params.id_user)
 
+        console.log('La paginacioncilla:',page);
+        
+
         const offset = 39 * (page - 1);
 
         const consulta = `
