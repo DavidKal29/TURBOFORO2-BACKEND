@@ -347,13 +347,41 @@ router.post('/hilo/:id_hilo', authMiddleware, validadorMensaje, CSRFProtection, 
 })
 
 
-//Ruta para obtener todos los hilos de un usuario logueado
-router.get('/mis_hilos/:page',authMiddleware,async(req,res)=>{
+//Ruta para obtener el contador de hilos de un usuario
+router.get('/counter_hilos/:id_user',async(req,res)=>{
+    let conn
+    try {
+        conn = await pool.getConnection();
+
+        const id_user = Number(req.params.id_user)
+
+
+        const [data] = await conn.query('SELECT COUNT(distinct id) as counter FROM hilos WHERE id_usuario = ?',[id_user])
+
+        if (data.length > 0) {
+            console.log('La respuesta ha obtenido datos');
+            res.json({ counter: data[0].counter });
+        } else {
+            console.log('El usuario seguramente no tiene hilos');
+            res.json({ counter: 0 });
+        }
+    } catch (error) {
+        console.error(error);
+        res.json({ message: 'Datos erróneos' });
+    } finally {
+        if (conn) conn.release(); 
+    }
+
+})
+
+//Ruta para obtener todos los hilos de un usuario 
+router.get('/user_hilos/:id_user/:page',async(req,res)=>{
     let conn
     try {
         conn = await pool.getConnection();
 
         const page = Number(req.params.page);
+        const id_user = Number(req.params.id_user)
 
         const offset = 39 * (page - 1);
 
@@ -367,7 +395,7 @@ router.get('/mis_hilos/:page',authMiddleware,async(req,res)=>{
             LIMIT 39 OFFSET ?
         `
 
-        const [data] = await conn.query(consulta,[req.user.id, offset]);
+        const [data] = await conn.query(consulta,[id_user, offset]);
 
         if (data.length > 0) {
             console.log('La respuesta ha obtenido datos');
