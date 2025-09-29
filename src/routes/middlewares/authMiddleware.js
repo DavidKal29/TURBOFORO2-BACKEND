@@ -8,7 +8,7 @@ const authMiddleware = async(req,res,next) =>{
     try {
         const token = req.cookies.token
         if (!token) {
-            res.status(401).json({loggedIn:false, "message":"Token inexistente"})
+            res.status(401).json({loggedIn:false, "message":"No estas autorizado"})
         }else{
             try {
                 const payload = jwt.verify(token,JWT_SECRET)
@@ -18,12 +18,12 @@ const authMiddleware = async(req,res,next) =>{
                 next()        
 
             } catch (error) {
-                res.status(401).json({loggedIn:false, "message":"Token inválido"})
+                res.status(401).json({loggedIn:false, "message":"No estas autorizado"})
             }
 
         }
     } catch (error) {
-        res.status(401).json({loggedIn:false, "message":"Token inválido"})
+        res.status(401).json({loggedIn:false, "message":"No estas autorizado"})
     }
 }
 
