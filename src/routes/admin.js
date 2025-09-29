@@ -198,4 +198,61 @@ router.get('/admin/delete_user/:id_cuenta', authMiddleware, async (req, res) => 
 });
 
 
+//Ruta de usuarios
+router.get('/admin/users',authMiddleware,async(req,res)=>{
+    let conn
+    console.log('R>utilla de usuaricillos');
+    
+    try {
+        conn = await pool.getConnection()
+
+        if (req.user.rol != 'admin') {
+            console.log('No eres admin');
+            
+            return res.json({message:'Debes ser administrador para entrar aquí'})
+        }
+
+        console.log('Eres admin');
+        
+
+        const consulta = `
+            SELECT 
+                u.id, 
+                u.email,
+                u.username,
+                u.id_avatar, 
+                u.rol, 
+                DATE_FORMAT(u.fecha_registro, "%d %M %Y") AS fecha
+            FROM usuarios u
+            WHERE u.id != ?
+            ORDER BY fecha_registro DESC
+        `
+
+        const [data] = await conn.query(consulta,[req.user.id])
+
+        if (data.length>0) {
+            console.log('Usuarios obtenidos');
+
+            console.log(data.length);
+            
+            
+            return res.json({users:data})
+        }else{
+            console.log('Usuarios no obtenidos');
+            
+            return res.json({message:'No hay usuarios'})
+        }
+        
+    } catch (error) {
+        console.log('El error en cuestión:');
+        console.log(error);
+        
+        return res.json({message:'Sucedió un error al intentar obtener los usuarios'})
+        
+    }finally{
+        if (conn) conn.release();
+    }
+})
+
+
 module.exports = router
