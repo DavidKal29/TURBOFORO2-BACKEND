@@ -413,4 +413,79 @@ router.get('/user_hilos/:id_user/:page',async(req,res)=>{
 
 })
 
+//Ruta para obtener el contador de hilos de un usuario
+router.get('/counter_mensajes/:id_user',async(req,res)=>{
+    let conn
+    try {
+        conn = await pool.getConnection();
+
+        const id_user = Number(req.params.id_user)
+
+
+        const [data] = await conn.query('SELECT COUNT(distinct id) as counter FROM mensajes WHERE id_usuario = ?',[id_user])
+
+        if (data.length > 0) {
+            console.log('La respuesta ha obtenido datos');
+            res.json({ counter: data[0].counter });
+        } else {
+            console.log('El usuario seguramente no tiene mensajes');
+            res.json({ counter: 0 });
+        }
+    } catch (error) {
+        console.error(error);
+        res.json({ message: 'Datos erróneos' });
+    } finally {
+        if (conn) conn.release(); 
+    }
+
+})
+
+
+//Ruta para obtener todos los mensajes de un usuario 
+router.get('/user_mensajes/:id_user/:page',async(req,res)=>{
+    let conn
+    try {
+        conn = await pool.getConnection();
+
+        const page = Number(req.params.page);
+        const id_user = Number(req.params.id_user)
+
+        const offset = 39 * (page - 1);
+
+        const consulta = `
+            SELECT 
+                m.*, 
+                DATE_FORMAT(m.fecha_registro, '%M %Y %H:%i') as fecha, 
+                u.username as username,
+                (SELECT COUNT(*) AS posicion FROM mensajes WHERE id_hilo = m.id_hilo AND id <= m.id) as position
+            FROM mensajes as m
+            INNER JOIN usuarios as u 
+            ON m.id_usuario = u.id 
+            WHERE m.id_usuario = ? 
+            ORDER BY id DESC 
+            LIMIT 39 OFFSET ?
+        `
+
+        const [data] = await conn.query(consulta,[id_user, offset]);
+
+        if (data.length > 0) {
+            console.log('La respuesta ha obtenido datos');
+
+
+
+            res.json({ mensajes: data });
+        } else {
+            console.log('El usuario seguramente no tiene mensajes');
+            res.json({ mensajes: data });
+        }
+    } catch (error) {
+        console.error(error);
+        res.json({ message: 'Datos erróneos' });
+    } finally {
+        if (conn) conn.release(); 
+    }
+
+})
+
+
 module.exports = router
