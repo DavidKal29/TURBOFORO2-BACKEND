@@ -21,7 +21,7 @@ router.post('/enviar_verificacion',authMiddleware,(req,res)=>{
             from: process.env.CORREO,
             to: email,
             subject: "Verificación",
-            text: `Para verificar la cuenta, entra a -> http://localhost:5000/verificar/${token}`
+            text: `Para verificar la cuenta, entra a -> ${process.env.BACKEND_URL}/verificar/${token}`
         };
             
         transporter.sendMail(mailOptions, (error, info) => {
