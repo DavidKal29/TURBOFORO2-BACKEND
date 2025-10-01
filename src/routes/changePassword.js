@@ -46,6 +46,8 @@ router.post('/recuperarPassword', validadorRecuperarPassword, CSRFProtection, as
 
             await conn.query('UPDATE usuarios SET token = ? WHERE email = ?', [token, email])
 
+            conn.release()
+
             try {
                 await transporter.sendMail(mailOptions)
                 return res.json({ message: "Correo enviado" })
