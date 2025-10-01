@@ -48,7 +48,7 @@ router.post('/recuperarPassword',validadorRecuperarPassword,CSRFProtection,async
             transporter.sendMail(mailOptions, (error, info) => {
                 if (error) {
                     console.log("Error al enviar:", error);
-                    res.json({"message":"Error al enviar correo"})
+                    return res.json({"message":"Error al enviar correo"})
                 }
             });
             

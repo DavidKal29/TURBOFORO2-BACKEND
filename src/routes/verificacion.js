@@ -27,7 +27,7 @@ router.post('/enviar_verificacion',authMiddleware,(req,res)=>{
         transporter.sendMail(mailOptions, (error, info) => {
             if (error) {
                 console.log("Error al enviar:", error);
-                res.json({"message":"Error al enviar correo de verificación"})
+                return res.json({"message":"Error al enviar correo de verificación"})
             }
         });
 
