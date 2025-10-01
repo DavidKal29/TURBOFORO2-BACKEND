@@ -8,6 +8,7 @@ const jwt = require('jsonwebtoken')
 const dotenv = require('dotenv').config()
 const JWT_SECRET = process.env.JWT_SECRET
 const transporter = require('../utils/transporter.js')
+const {apiInstance, brevo} = require('../utils/brevo.js')
 
 
 //Validador del email de recuperación de contraseña
@@ -37,24 +38,21 @@ router.post('/recuperarPassword', validadorRecuperarPassword, CSRFProtection, as
         if (user_exists.length > 0) {
             const token = jwt.sign({ email: email }, JWT_SECRET)
 
-            const mailOptions = {
-                from: process.env.CORREO,
-                to: email,
-                subject: "Recuperación de Contraseña",
-                text: `Para recuperar la contraseña entra en este enlace -> ${process.env.FRONTEND_URL}/change_password/${token}`
-            }
-
             await conn.query('UPDATE usuarios SET token = ? WHERE email = ?', [token, email])
 
-            conn.release()
+            const sendSmtpEmail = {
+                sender: { name: "TurboForo2", email: process.env.CORREO },
+                to: [{ email }],
+                subject: "Recuperar Contraseña",
+                textContent: `Para recuperar la contraseña entra en este enlace -> ${process.env.FRONTEND_URL}/change_password/${token}`,
+                htmlContent: `<p>Para recuperar la contraseña, entra a -> <a href="${process.env.FRONTEND_URL}/change_password/${token}">Recuperar Contraseña</a></p>`
+            };
 
-            try {
-                await transporter.sendMail(mailOptions)
-                return res.json({ message: "Correo enviado" })
-            } catch (mailError) {
-                console.error("Error al enviar correo:", mailError)
-                return res.json({ message: "Error SMTP, Render no deja enviar correos, pero se generó el enlace" })
-            }
+            await apiInstance.sendTransacEmail(sendSmtpEmail)
+
+            return res.json({message:'Correo enviado con éxito'})
+
+
 
         } else {
             return res.json({ message: "No hay ninguna cuenta asociada a este correo" })

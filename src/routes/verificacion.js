@@ -5,31 +5,32 @@ const authMiddleware = require('./middlewares/authMiddleware.js')
 const jwt = require('jsonwebtoken')
 const dotenv = require('dotenv').config()
 const JWT_SECRET = process.env.JWT_SECRET
-const transporter = require('../utils/transporter.js')
+const {apiInstance, brevo} = require('../utils/brevo.js')
 const options = require('./middlewares/options.js')
 
 // Ruta para enviar la verificación por email
 router.post('/enviar_verificacion', authMiddleware, async (req, res) => {
+    console.log(process.env.CORREO);
+    
+
     try {
         const { email } = req.body
 
         const token = jwt.sign({ email: email }, JWT_SECRET, { expiresIn: '5m' })
         console.log('El token:', token)
 
-        const mailOptions = {
-            from: process.env.CORREO,
-            to: email,
+        const sendSmtpEmail = {
+            sender: { name: "TurboForo2", email: process.env.CORREO },
+            to: [{ email }],
             subject: "Verificación",
-            text: `Para verificar la cuenta, entra a -> ${process.env.BACKEND_URL}/verificar/${token}`
-        }
+            textContent: `Para verificar la cuenta, entra a -> ${process.env.BACKEND_URL}/verificar/${token}`,
+            htmlContent: `<p>Para verificar la cuenta, entra a -> <a href="${process.env.BACKEND_URL}/verificar/${token}">Verificar</a></p>`
+        };
+        
 
-        try {
-            await transporter.sendMail(mailOptions)
-            return res.json({ message: "Correo de verificación enviado con éxito" })
-        } catch (mailError) {
-            console.error("Error al enviar correo de verificación:", mailError)
-            return res.json({ message: "Error SMTP, Render no deja enviar correo de verificación" })
-        }
+        await apiInstance.sendTransacEmail(sendSmtpEmail)
+
+        return res.json({message:'Correo enviado con exito'})
 
     } catch (error) {
         console.error(error)
