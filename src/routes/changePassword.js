@@ -21,48 +21,51 @@ const validadorRecuperarPassword = [
         .escape()
     ]
 
-//Ruta para enviar correo de recuperación
-router.post('/recuperarPassword',validadorRecuperarPassword,CSRFProtection,async(req,res)=>{
+// Ruta para enviar correo de recuperación
+router.post('/recuperarPassword', validadorRecuperarPassword, CSRFProtection, async (req, res) => {
     let conn
-    try{
-
+    try {
         const errors = validationResult(req)
-
         if (!errors.isEmpty()) {
-            return res.status(400).json({error:errors.array()[0]})
+            return res.status(400).json({ error: errors.array()[0] })
         }
 
         conn = await pool.getConnection()
-        const {email} = req.body
-        const [user_exists] = await conn.query('SELECT * FROM usuarios WHERE email = ?',[email])
-        if (user_exists.length>0) {
-            const token = jwt.sign({email:email},JWT_SECRET)
-            
+        const { email } = req.body
+        const [user_exists] = await conn.query('SELECT * FROM usuarios WHERE email = ?', [email])
+
+        if (user_exists.length > 0) {
+            const token = jwt.sign({ email: email }, JWT_SECRET)
+
             const mailOptions = {
                 from: process.env.CORREO,
                 to: email,
                 subject: "Recuperación de Contraseña",
                 text: `Para recuperar la contraseña entra en este enlace -> ${process.env.FRONTEND_URL}/change_password/${token}`
-            };
-            
-            transporter.sendMail(mailOptions, (error, info) => {
-                if (error) {
-                    console.log("Error al enviar:", error);
-                    return res.json({"message":"Error al enviar correo"})
-                }
-            });
-            
-            await conn.query('UPDATE usuarios SET token = ? WHERE email = ?',[token,email])
-            res.json({"message":"Correo enviado"})
-        }else{
-            res.json({"message":"No hay ninguna cuenta asociada a este correo"})
+            }
+
+            await conn.query('UPDATE usuarios SET token = ? WHERE email = ?', [token, email])
+
+            try {
+                await transporter.sendMail(mailOptions)
+                return res.json({ message: "Correo enviado" })
+            } catch (mailError) {
+                console.error("Error al enviar correo:", mailError)
+                return res.json({ message: "Error SMTP, Render no deja enviar correos, pero se generó el enlace" })
+            }
+
+        } else {
+            return res.json({ message: "No hay ninguna cuenta asociada a este correo" })
         }
-    }catch(error){
-        res.status(500).json({message:"Error en recuperarPassword"})
-    }finally{
-        if (conn) conn.release();
+
+    } catch (error) {
+        console.error(error)
+        return res.status(500).json({ message: "Error en recuperarPassword" })
+    } finally {
+        if (conn) conn.release()
     }
 })
+
 
 //Validador de cambio de contraseña
 const validadorChangePassword = [

@@ -8,33 +8,32 @@ const JWT_SECRET = process.env.JWT_SECRET
 const transporter = require('../utils/transporter.js')
 const options = require('./middlewares/options.js')
 
-//Ruta para enviar la verificación por email
-router.post('/enviar_verificacion',authMiddleware,(req,res)=>{
+// Ruta para enviar la verificación por email
+router.post('/enviar_verificacion', authMiddleware, async (req, res) => {
     try {
-        const {email} = req.body
+        const { email } = req.body
 
-        const token = jwt.sign({email:email},JWT_SECRET,{expiresIn:'5m'})
+        const token = jwt.sign({ email: email }, JWT_SECRET, { expiresIn: '5m' })
+        console.log('El token:', token)
 
-        console.log('El token:',token);
-        
         const mailOptions = {
             from: process.env.CORREO,
             to: email,
             subject: "Verificación",
             text: `Para verificar la cuenta, entra a -> ${process.env.BACKEND_URL}/verificar/${token}`
-        };
-            
-        transporter.sendMail(mailOptions, (error, info) => {
-            if (error) {
-                console.log("Error al enviar:", error);
-                return res.json({"message":"Error al enviar correo de verificación"})
-            }
-        });
+        }
 
-        res.json({message:"Correo enviado con éxito"})
-        
+        try {
+            await transporter.sendMail(mailOptions)
+            return res.json({ message: "Correo de verificación enviado con éxito" })
+        } catch (mailError) {
+            console.error("Error al enviar correo de verificación:", mailError)
+            return res.json({ message: "Error SMTP, Render no deja enviar correo de verificación" })
+        }
+
     } catch (error) {
-        res.json({"message":"Error al mandar correo de verificación"})
+        console.error(error)
+        return res.json({ message: "Error al mandar correo de verificación" })
     }
 })
 
