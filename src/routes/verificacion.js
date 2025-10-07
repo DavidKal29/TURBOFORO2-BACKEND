@@ -39,7 +39,7 @@ router.post('/enviar_verificacion', authMiddleware, async (req, res) => {
 })
 
 //Ruta para marcar como verificado al usuario
-router.get('/verificar/:token',authMiddleware,async(req,res)=>{
+router.get('/verificar/:token',async(req,res)=>{
     let conn
     try {
 
