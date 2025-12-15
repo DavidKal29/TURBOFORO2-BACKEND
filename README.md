@@ -9,10 +9,11 @@ Esta es una **API/backend** para un foro en línea llamada **TurboForo2**, espec
 
 - **Autenticación completa**: registro, login y recuperación de contraseña mediante JWT.
 - **Gestión de usuarios**: crear, editar y eliminar cuentas de usuario.
-- **Gestión de publicaciones y comentarios**: CRUD completo sobre posts y comentarios.
-- **Protección de rutas** mediante **JWT**, asegurando que solo usuarios autorizados puedan acceder a ciertas operaciones.
+- **Gestión de publicaciones y comentarios**: crear y ver hilos, así como comentar y responder a otros usuarios dentro de estos.
+- **Modo Admin**: Rutas que solo un usuario con el rol admin puede acceder. Esto incluye ver y manipular cualquier mensaje, hilo o usuario.
+- **Protección de rutas** mediante **JWT**, **Cookies**, mediante un **Middleware**, asegurando que solo usuarios autorizados puedan acceder a ciertas operaciones
 - **CORS habilitado**, preparado para trabajar con frontend externo.
-- **Envío de emails automáticos** para confirmaciones, notificaciones o recuperación de contraseña.
+- **Envío de emails automáticos** para confirmaciones, notificaciones o recuperación de contraseña. Utilizando el servicio de Brevo(paquete indicado abajo).
 - **Validación de datos** con `express-validator` para garantizar integridad y seguridad.
 - **Middleware de seguridad** con `csurf` y `cookie-parser`.
 
@@ -37,6 +38,7 @@ Para ejecutar este proyecto necesitas:
   - `nodemailer`
   - `nodemon`
   - `cross-env`
+  - `@getbrevo/brevo`
 
 ---
 
@@ -59,9 +61,11 @@ Para ejecutar este proyecto necesitas:
     DATABASE=
     JWT_SECRET=
     CORREO=
-    PASSWORD_DEL_CORREO=
+    APIKEY= (Asegurate de tener cuenta en Brevo y tener la apikey válida)
     PORT=
     FRONTEND_URL=
+    BACKEND_URL=
+
 
 4. **Modo Desarrollo**
    ```bash
